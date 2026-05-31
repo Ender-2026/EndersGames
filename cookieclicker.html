@@ -179,11 +179,12 @@ function updateDisplay(){
 function renderBuildings(){
   var div=document.getElementById('buildings');
   div.innerHTML='';
-  BUILDINGS.forEach(function(b){
+  BUILDINGS.forEach(function(b,i){
     var cost=getBuildingCost(b);
     var canAfford=cookies>=cost;
     var el=document.createElement('div');
     el.className='building'+(canAfford?'':' disabled');
+    el.setAttribute('data-bidx',i);
     el.innerHTML='<div class="b-icon">'+b.icon+'</div>'
       +'<div class="b-info">'
       +'<div class="b-name">'+b.name+'</div>'
@@ -191,12 +192,25 @@ function renderBuildings(){
       +'<div class="b-cost">💰 '+fmtNum(cost)+'</div>'
       +'</div>'
       +'<div class="b-owned">'+b.owned+'</div>';
-    el.addEventListener('click',function(){
-      if(canAfford){buyBuilding(b);}
-      else{var need=getBuildingCost(b)-Math.floor(cookies);showNotif('Need '+fmtNum(need)+' more cookies for '+b.name+'!');}
-    });
     div.appendChild(el);
   });
+}
+
+function handleShopTap(e){
+  var el=e.target.closest('[data-bidx]');
+  if(!el)return;
+  var b=BUILDINGS[parseInt(el.getAttribute('data-bidx'))];
+  if(!b)return;
+  var cost=getBuildingCost(b);
+  if(cookies>=cost){buyBuilding(b);}
+  else{var need=cost-Math.floor(cookies);showNotif('Need '+fmtNum(need)+' more cookies for '+b.name+'!');}
+}
+
+function setupShopListeners(){
+  var div=document.getElementById('buildings');
+  div.addEventListener('click',handleShopTap);
+  div.addEventListener('touchend',function(e){e.preventDefault();handleShopTap(e);},{passive:false});
+  div.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
 }
 
 function renderUnlockedUpgrades(){
@@ -239,7 +253,7 @@ function buyBuilding(b){
 }
 
 function clickCookie(e){
-  if(!running)return;
+  if(!running)return;  // safety check
   getAudio();
   var gain=getClickPower();
   cookies+=gain;
@@ -363,10 +377,12 @@ function doLoad(){
 }
 
 function startGame(){
+  if(running)return;
   running=true;
   document.getElementById('start-screen').style.display='none';
   recalcCPS();
   updateDisplay();
+  setupShopListeners();
   startTicking();
   if(autoSaveInterval)clearInterval(autoSaveInterval);
   autoSaveInterval=setInterval(function(){doSave();},10000);
@@ -377,10 +393,19 @@ document.getElementById('start-btn').addEventListener('click',function(){
   getAudio();
   startGame();
 });
+document.getElementById('start-btn').addEventListener('touchend',function(e){
+  e.preventDefault();
+  getAudio();
+  startGame();
+},{passive:false});
 
-document.getElementById('cookie-wrap').addEventListener('click',function(e){clickCookie(e);});
+document.getElementById('cookie-wrap').addEventListener('click',function(e){
+  if(!running){startGame();}
+  clickCookie(e);
+});
 document.getElementById('cookie-wrap').addEventListener('touchend',function(e){
   e.preventDefault();
+  if(!running){startGame();}
   clickCookie(e.changedTouches[0]);
 },{passive:false});
 document.getElementById('cookie-wrap').addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
