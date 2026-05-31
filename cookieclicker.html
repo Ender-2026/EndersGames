@@ -14,11 +14,9 @@ h1 { color: #ffff00; font-size: 20px; margin-bottom: 2px; }
 #stats .big { color: #ffff00; font-size: 22px; font-weight: bold; }
 #game { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 600px; }
 #cookie-area { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-#cookie-wrap { position: relative; width: 150px; height: 150px; cursor: pointer; user-select: none; -webkit-user-select: none; }
-#cookie { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #d4863a, #a0531a);
-  border: 4px solid #ff8800; display: flex; align-items: center; justify-content: center;
-  font-size: 80px; transition: transform 0.08s; box-shadow: 0 4px 16px rgba(255,136,0,0.4); }
-#cookie:active, #cookie.click-anim { transform: scale(0.88); }
+#cookie-wrap { position: relative; width: 150px; height: 150px; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; }
+#cookie { width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #d4863a, #a0531a); border: 4px solid #ff8800; display: flex; align-items: center; justify-content: center; font-size: 80px; transition: transform 0.08s; box-shadow: 0 4px 16px rgba(255,136,0,0.4); pointer-events: none; }
+#cookie.click-anim { transform: scale(0.88); }
 #cookie-count { color: #ffff00; font-size: 18px; font-weight: bold; margin-top: 6px; }
 #cps-display { color: #ffcccc; font-size: 12px; margin-top: 2px; }
 #upgrades-unlocked { margin-top: 8px; width: 150px; }
@@ -27,144 +25,86 @@ h1 { color: #ffff00; font-size: 20px; margin-bottom: 2px; }
 #right-panel { flex: 1; min-width: 200px; max-width: 260px; }
 #shop { background: darkred; border: 2px solid #ff6666; border-radius: 10px; padding: 8px; }
 #shop h3 { color: #ffff00; font-size: 14px; margin-bottom: 6px; }
-.building { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer;
-  background: #2a0000; border: 1.5px solid #ff6666; border-radius: 6px; padding: 5px 7px;
-  transition: background 0.15s, border-color 0.15s; }
-.building:hover { background: #3a0000; border-color: yellow; }
-.building.disabled { opacity: 0.45; cursor: default; }
-.b-icon { font-size: 22px; flex-shrink: 0; }
-.b-info { flex: 1; }
+.building { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer; background: #2a0000; border: 1.5px solid #ff6666; border-radius: 6px; padding: 5px 7px; -webkit-tap-highlight-color: transparent; }
+.building:active { background: #3a0000; border-color: yellow; }
+.building.disabled { opacity: 0.45; }
+.b-icon { font-size: 22px; flex-shrink: 0; pointer-events: none; }
+.b-info { flex: 1; pointer-events: none; }
 .b-name { color: #ffff00; font-size: 12px; font-weight: bold; }
 .b-cps { color: #ffcccc; font-size: 10px; }
 .b-cost { color: #ffff00; font-size: 11px; font-weight: bold; }
-.b-owned { background: #550000; border: 1px solid #ff6666; border-radius: 4px; padding: 2px 6px; color: #ffff00; font-size: 12px; font-weight: bold; min-width: 24px; text-align: center; }
+.b-owned { background: #550000; border: 1px solid #ff6666; border-radius: 4px; padding: 2px 6px; color: #ffff00; font-size: 12px; font-weight: bold; min-width: 24px; text-align: center; pointer-events: none; }
 #reset-btn { background: #220000; border: 1px solid #ff6666; color: #ff9999; font-size: 11px; padding: 4px 10px; border-radius: 5px; cursor: pointer; margin-top: 6px; display: block; width: 100%; }
-#reset-btn:hover { color: #ffff00; border-color: yellow; }
 .float-txt { position: fixed; pointer-events: none; color: #ffff00; font-size: 16px; font-weight: bold; z-index: 50; }
-#golden-cookie { position: fixed; cursor: pointer; font-size: 36px; z-index: 60; display: none;
-  animation: golden-pulse 0.8s ease-in-out infinite alternate;
-  text-shadow: 0 0 12px gold, 0 0 24px gold; }
+#golden-cookie { position: fixed; cursor: pointer; font-size: 36px; z-index: 60; display: none; animation: golden-pulse 0.8s ease-in-out infinite alternate; text-shadow: 0 0 12px gold, 0 0 24px gold; touch-action: none; }
 @keyframes golden-pulse { from { transform: scale(1); } to { transform: scale(1.2); } }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 10; }
 .overlay h2 { color: #ffff00; font-size: 26px; }
 .overlay p { color: #ffcccc; font-size: 14px; text-align: center; max-width: 300px; }
-.overlay button { background: darkred; border: 2px solid #ff6666; color: #ffff00; font-size: 16px; padding: 8px 24px; border-radius: 8px; cursor: pointer; }
-.overlay button:hover { background: #8b0000; }
+.overlay button { background: darkred; border: 2px solid #ff6666; color: #ffff00; font-size: 16px; padding: 8px 24px; border-radius: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #all-time { color: #ffcccc; font-size: 11px; margin-top: 3px; text-align: center; }
+#notif { position:fixed; top:50px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); border:2px solid #ffaa00; color:#ffff00; padding:8px 18px; border-radius:8px; font-size:14px; z-index:70; pointer-events:none; display:none; }
 </style>
 </head>
 <body>
-<a href="index.html" id="home-btn">🏠 Home</a>
-<h1>🍪 Cookie Clicker</h1>
-<div id="stats">
-  <div class="big" id="cookie-disp">0</div>
-  <div id="cps-stat">0 per second</div>
-</div>
+<a href="index.html" id="home-btn">&#x1F3E0; Home</a>
+<h1>&#x1F36A; Cookie Clicker</h1>
+<div id="stats"><div class="big" id="cookie-disp">0</div><div id="cps-stat">0 per second</div></div>
 <div id="game">
   <div id="cookie-area">
-    <div id="cookie-wrap">
-      <div id="cookie">🍪</div>
-    </div>
+    <div id="cookie-wrap"><div id="cookie">&#x1F36A;</div></div>
     <div id="cookie-count">0 cookies</div>
     <div id="cps-display">0 CPS</div>
     <div id="upgrades-unlocked"></div>
   </div>
   <div id="right-panel">
-    <div id="shop">
-      <h3>🛒 Shop</h3>
-      <div id="buildings"></div>
-    </div>
+    <div id="shop"><h3>&#x1F6D2; Shop</h3><div id="buildings"></div></div>
     <div id="all-time">All-time baked: <b id="alltime-disp" style="color:#ffff00">0</b></div>
-    <button id="reset-btn">↺ Reset Save</button>
+    <button id="reset-btn">&#x21BA; Reset Save</button>
   </div>
 </div>
-<div id="golden-cookie">🌟</div>
-
+<div id="golden-cookie">&#x1F31F;</div>
+<div id="notif"></div>
 <div class="overlay" id="start-screen">
-  <h2>🍪 Cookie Clicker</h2>
-  <p>Click the big cookie! Buy buildings to earn cookies automatically. Find golden cookies for bonus cookies!</p>
+  <h2>&#x1F36A; Cookie Clicker</h2>
+  <p>Tap the big cookie to earn cookies! Buy buildings in the shop to earn automatically.</p>
   <p style="font-size:12px;color:#ff9999">Your save is restored automatically</p>
-  <button id="start-btn">▶ Play!</button>
+  <button id="start-btn">&#x25B6; Play!</button>
 </div>
-
 <script>
 var FB_CFG={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
-const HS_KEY='hs_cookieclicker';
-const SAVE_KEY='save_cookieclicker';
+var HS_KEY='hs_cookieclicker', SAVE_KEY='save_cookieclicker';
 function getHS(){return parseFloat(localStorage.getItem(HS_KEY))||0;}
 function saveHS(s){if(s>getHS())localStorage.setItem(HS_KEY,Math.floor(s));}
-function submitScore(score){
-  var name=localStorage.getItem('visitorName')||'Player';
-  try{var app=firebase.initializeApp(FB_CFG,'lb_cookieclicker');var db=app.database();
-  db.ref('leaderboard/cookieclicker').push({name:name,score:Math.floor(score),date:new Date().toLocaleDateString()});}catch(e){}
-}
+function submitScore(score){var name=localStorage.getItem('visitorName')||'Player';try{var app=firebase.initializeApp(FB_CFG,'lb_cookieclicker');app.database().ref('leaderboard/cookieclicker').push({name:name,score:Math.floor(score),date:new Date().toLocaleDateString()});}catch(e){}}
 
-let audio=null;
+var audio=null;
 function getAudio(){if(!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return audio;}
-function beep(freq,dur,type='sine',vol=0.1){
-  var a=getAudio();if(!a)return;
-  var o=a.createOscillator(),g=a.createGain();
-  o.connect(g);g.connect(a.destination);
-  o.type=type;o.frequency.value=freq;
-  g.gain.setValueAtTime(vol,a.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
-  o.start();o.stop(a.currentTime+dur);
-}
+function beep(freq,dur,type,vol){type=type||'sine';vol=vol||0.1;var a=getAudio();if(!a)return;var o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.start();o.stop(a.currentTime+dur);}
 function playClick(){beep(480+Math.random()*80,0.04,'sine',0.08);}
-function playBuy(){beep(600,0.1,'sine');setTimeout(()=>beep(800,0.12,'sine'),100);}
-function playGolden(){beep(880,0.1);setTimeout(()=>beep(1100,0.1),100);setTimeout(()=>beep(1320,0.2),200);}
+function playBuy(){beep(600,0.1);setTimeout(function(){beep(800,0.12);},100);}
+function playGolden(){beep(880,0.1);setTimeout(function(){beep(1100,0.1);},100);setTimeout(function(){beep(1320,0.2);},200);}
 
-// Buildings definition
 var BUILDINGS=[
   {id:'cursor',  icon:'🖱️', name:'Cursor',  baseCost:10,   baseCPS:0.1,  owned:0},
   {id:'grandma', icon:'👵', name:'Grandma', baseCost:75,   baseCPS:0.5,  owned:0},
   {id:'farm',    icon:'🌾', name:'Farm',    baseCost:500,  baseCPS:4,    owned:0},
   {id:'mine',    icon:'⛏️', name:'Mine',    baseCost:2000, baseCPS:20,   owned:0},
-  {id:'factory', icon:'🏭', name:'Factory', baseCost:8000, baseCPS:100,  owned:0},
+  {id:'factory', icon:'🏭', name:'Factory', baseCost:8000, baseCPS:100,  owned:0}
 ];
-
-// Upgrades
 var UPGRADES=[
-  {id:'better',   name:'Better Cookies',  desc:'Clicking gives ×2',   unlockAt:100, unlockStat:'allTime', target:'click', mult:2,  bought:false},
-  {id:'megafarm', name:'Mega Farm',        desc:'Farms give ×2',        unlockAt:10,  unlockStat:'farms',   target:'farm', mult:2,  bought:false},
+  {id:'better',  name:'Better Cookies', desc:'Clicking gives x2', unlockAt:100, unlockStat:'allTime', mult:2, bought:false},
+  {id:'megafarm',name:'Mega Farm',      desc:'Farms give x2',     unlockAt:10,  unlockStat:'farms',   mult:2, bought:false}
 ];
+var cookies=0,allTimeBaked=0,cps=0,running=false,cpsInterval=null,autoSaveInterval=null,notifTimer=null,goldenActive=false,goldenTimer=null;
 
-var cookies=0,allTimeBaked=0,cps=0,clickPower=1;
-var goldenActive=false,goldenTimer=null,goldenEl=null;
-var lastSave=0,saveInterval=10000;
-var running=false;
-var cpsInterval=null,autoSaveInterval=null;
+function getBuildingCPS(b){var base=b.baseCPS*b.owned;if(b.id==='farm'){var u=UPGRADES.find(function(u){return u.id==='megafarm';});if(u&&u.bought)base*=u.mult;}return base;}
+function recalcCPS(){cps=BUILDINGS.reduce(function(s,b){return s+getBuildingCPS(b);},0);}
+function getClickPower(){var cp=1;var u=UPGRADES.find(function(u){return u.id==='better';});if(u&&u.bought)cp*=u.mult;return cp;}
+function getBuildingCost(b){return Math.ceil(b.baseCost*Math.pow(1.15,b.owned));}
+function fmtNum(n){n=Math.floor(n);if(n>=1e12)return(n/1e12).toFixed(2)+'T';if(n>=1e9)return(n/1e9).toFixed(2)+'B';if(n>=1e6)return(n/1e6).toFixed(2)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return n.toString();}
 
-function getBuildingCPS(b){
-  var base=b.baseCPS*b.owned;
-  // Apply upgrades
-  if(b.id==='farm'){var u=UPGRADES.find(u=>u.id==='megafarm');if(u&&u.bought)base*=u.mult;}
-  return base;
-}
-
-function recalcCPS(){
-  cps=BUILDINGS.reduce((s,b)=>s+getBuildingCPS(b),0);
-}
-
-function getClickPower(){
-  var cp=1;
-  var u=UPGRADES.find(u=>u.id==='better');
-  if(u&&u.bought)cp*=u.mult;
-  return cp;
-}
-
-function getBuildingCost(b){
-  return Math.ceil(b.baseCost*Math.pow(1.15,b.owned));
-}
-
-function fmtNum(n){
-  n=Math.floor(n);
-  if(n>=1e12)return(n/1e12).toFixed(2)+'T';
-  if(n>=1e9)return(n/1e9).toFixed(2)+'B';
-  if(n>=1e6)return(n/1e6).toFixed(2)+'M';
-  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
-  return n.toString();
-}
+function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt;n.style.display='block';if(notifTimer)clearTimeout(notifTimer);notifTimer=setTimeout(function(){n.style.display='none';},2500);}
 
 function updateDisplay(){
   document.getElementById('cookie-disp').textContent=fmtNum(cookies)+' 🍪';
@@ -181,49 +121,18 @@ function renderBuildings(){
   div.innerHTML='';
   BUILDINGS.forEach(function(b,i){
     var cost=getBuildingCost(b);
-    var canAfford=cookies>=cost;
     var el=document.createElement('div');
-    el.className='building'+(canAfford?'':' disabled');
-    el.setAttribute('data-bidx',i);
-    el.innerHTML='<div class="b-icon">'+b.icon+'</div>'
-      +'<div class="b-info">'
-      +'<div class="b-name">'+b.name+'</div>'
-      +'<div class="b-cps">'+b.baseCPS+'/s each</div>'
-      +'<div class="b-cost">💰 '+fmtNum(cost)+'</div>'
-      +'</div>'
-      +'<div class="b-owned">'+b.owned+'</div>';
+    el.className='building'+(cookies>=cost?'':' disabled');
+    el.dataset.idx=String(i);
+    el.innerHTML='<div class="b-icon">'+b.icon+'</div><div class="b-info"><div class="b-name">'+b.name+'</div><div class="b-cps">'+b.baseCPS+'/s each</div><div class="b-cost">💰 '+fmtNum(cost)+'</div></div><div class="b-owned">'+b.owned+'</div>';
     div.appendChild(el);
   });
-}
-
-function handleShopTap(e){
-  var el=e.target.closest('[data-bidx]');
-  if(!el)return;
-  var b=BUILDINGS[parseInt(el.getAttribute('data-bidx'))];
-  if(!b)return;
-  var cost=getBuildingCost(b);
-  if(cookies>=cost){buyBuilding(b);}
-  else{var need=cost-Math.floor(cookies);showNotif('Need '+fmtNum(need)+' more cookies for '+b.name+'!');}
-}
-
-function setupShopListeners(){
-  var div=document.getElementById('buildings');
-  div.addEventListener('click',handleShopTap);
-  div.addEventListener('touchend',function(e){e.preventDefault();handleShopTap(e);},{passive:false});
-  div.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
 }
 
 function renderUnlockedUpgrades(){
   var div=document.getElementById('upgrades-unlocked');
   div.innerHTML='';
-  UPGRADES.forEach(function(u){
-    if(u.bought){
-      var el=document.createElement('div');
-      el.className='upgrade-unlocked';
-      el.innerHTML='✅ <b>'+u.name+'</b><br>'+u.desc;
-      div.appendChild(el);
-    }
-  });
+  UPGRADES.forEach(function(u){if(u.bought){var el=document.createElement('div');el.className='upgrade-unlocked';el.innerHTML='✅ <b>'+u.name+'</b><br>'+u.desc;div.appendChild(el);}});
 }
 
 function checkUpgradeUnlocks(){
@@ -231,204 +140,110 @@ function checkUpgradeUnlocks(){
     if(u.bought)return;
     var val=0;
     if(u.unlockStat==='allTime')val=allTimeBaked;
-    else if(u.unlockStat==='farms'){var f=BUILDINGS.find(b=>b.id==='farm');val=f?f.owned:0;}
-    if(val>=u.unlockAt){
-      u.bought=true;
-      recalcCPS();
-      showNotif('Upgrade unlocked: '+u.name+'!');
-    }
+    else if(u.unlockStat==='farms'){var f=BUILDINGS.find(function(b){return b.id==='farm';});val=f?f.owned:0;}
+    if(val>=u.unlockAt){u.bought=true;recalcCPS();showNotif('Upgrade unlocked: '+u.name+'!');}
   });
 }
 
-function buyBuilding(b){
+function tryBuy(idx){
+  var b=BUILDINGS[idx];if(!b)return;
   var cost=getBuildingCost(b);
-  if(cookies<cost)return;
-  getAudio();
-  cookies-=cost;
-  b.owned++;
-  recalcCPS();
-  playBuy();
-  checkUpgradeUnlocks();
-  updateDisplay();
+  if(cookies<cost){showNotif('Need '+fmtNum(cost-Math.floor(cookies))+' more cookies for '+b.name+'!');return;}
+  getAudio();cookies-=cost;b.owned++;recalcCPS();playBuy();checkUpgradeUnlocks();updateDisplay();
 }
 
-function clickCookie(e){
-  if(!running)return;  // safety check
+// Shop: single persistent listener on container (never gets destroyed by innerHTML)
+(function(){
+  var div=document.getElementById('buildings');
+  div.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
+  div.addEventListener('touchend',function(e){
+    e.preventDefault();
+    var el=e.target.closest ? e.target.closest('[data-idx]') : null;
+    if(!el){var t=e.target;while(t&&t!==div){if(t.dataset&&t.dataset.idx!==undefined){el=t;break;}t=t.parentNode;}}
+    if(el)tryBuy(parseInt(el.dataset.idx));
+  },{passive:false});
+  div.addEventListener('click',function(e){
+    var el=e.target.closest ? e.target.closest('[data-idx]') : null;
+    if(!el){var t=e.target;while(t&&t!==div){if(t.dataset&&t.dataset.idx!==undefined){el=t;break;}t=t.parentNode;}}
+    if(el)tryBuy(parseInt(el.dataset.idx));
+  });
+})();
+
+function clickCookie(x,y){
+  if(!running)return;
   getAudio();
   var gain=getClickPower();
-  cookies+=gain;
-  allTimeBaked+=gain;
-  saveHS(allTimeBaked);
-  playClick();
-  // Float text
-  if(e){
-    var el=document.createElement('div');
-    el.className='float-txt';
-    el.textContent='+'+fmtNum(gain);
-    var cx=e.clientX||(e.touches&&e.touches[0]?e.touches[0].clientX:200);
-    var cy=e.clientY||(e.touches&&e.touches[0]?e.touches[0].clientY:300);
-    el.style.left=cx+'px';el.style.top=cy+'px';
-    document.body.appendChild(el);
-    var y=cy,op=1;
-    var anim=setInterval(function(){
-      y-=2;op-=0.06;
-      el.style.top=y+'px';el.style.opacity=op;
-      if(op<=0){clearInterval(anim);el.remove();}
-    },25);
-  }
-  // Click animation
-  var c=document.getElementById('cookie');
-  c.classList.add('click-anim');
-  setTimeout(function(){c.classList.remove('click-anim');},80);
+  cookies+=gain;allTimeBaked+=gain;saveHS(allTimeBaked);playClick();
+  var el=document.createElement('div');el.className='float-txt';el.textContent='+'+fmtNum(gain);el.style.left=(x||200)+'px';el.style.top=(y||300)+'px';document.body.appendChild(el);
+  var cy=y||300,op=1;var anim=setInterval(function(){cy-=2;op-=0.06;el.style.top=cy+'px';el.style.opacity=op;if(op<=0){clearInterval(anim);el.remove();}},25);
+  document.getElementById('cookie').classList.add('click-anim');
+  setTimeout(function(){document.getElementById('cookie').classList.remove('click-anim');},80);
   updateDisplay();
 }
 
-// CPS tick
+// Cookie wrapper: touch-action:none so we handle all touch manually, no ghost click
+(function(){
+  var wrap=document.getElementById('cookie-wrap');
+  wrap.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
+  wrap.addEventListener('touchend',function(e){
+    e.preventDefault();
+    if(!running)startGame();
+    var t=e.changedTouches[0];
+    clickCookie(t?t.clientX:200,t?t.clientY:300);
+  },{passive:false});
+  wrap.addEventListener('click',function(e){
+    if(!running)startGame();
+    clickCookie(e.clientX,e.clientY);
+  });
+})();
+
 function startTicking(){
   if(cpsInterval)clearInterval(cpsInterval);
   cpsInterval=setInterval(function(){
-    if(!running)return;
-    var gain=cps/10;
-    cookies+=gain;
-    allTimeBaked+=gain;
-    saveHS(allTimeBaked);
-    checkUpgradeUnlocks();
-    updateDisplay();
+    if(!running||cps===0)return;
+    var gain=cps/10;cookies+=gain;allTimeBaked+=gain;saveHS(allTimeBaked);checkUpgradeUnlocks();updateDisplay();
   },100);
 }
 
-// Golden cookie
-function spawnGolden(){
-  if(!running)return;
-  goldenEl=document.getElementById('golden-cookie');
-  var mx=Math.random()*(window.innerWidth-60)+10;
-  var my=Math.random()*(window.innerHeight-60)+60;
-  goldenEl.style.left=mx+'px';
-  goldenEl.style.top=my+'px';
-  goldenEl.style.display='block';
-  goldenActive=true;
-  if(goldenTimer)clearTimeout(goldenTimer);
-  goldenTimer=setTimeout(function(){
-    goldenEl.style.display='none';
-    goldenActive=false;
-    scheduleGolden();
-  },13000);
-}
+var goldenEl=document.getElementById('golden-cookie');
+(function(){
+  goldenEl.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
+  goldenEl.addEventListener('touchend',function(e){e.preventDefault();if(running&&goldenActive)collectGolden();},{passive:false});
+  goldenEl.addEventListener('click',function(){if(running&&goldenActive)collectGolden();});
+})();
+function collectGolden(){goldenActive=false;goldenEl.style.display='none';if(goldenTimer)clearTimeout(goldenTimer);getAudio();var bonus=Math.max(cps*60,100);cookies+=bonus;allTimeBaked+=bonus;playGolden();showNotif('Golden Cookie! +'+fmtNum(bonus)+' cookies!');updateDisplay();scheduleGolden();}
+function spawnGolden(){if(!running)return;goldenEl.style.left=(Math.random()*(window.innerWidth-60)+10)+'px';goldenEl.style.top=(Math.random()*(window.innerHeight-60)+60)+'px';goldenEl.style.display='block';goldenActive=true;if(goldenTimer)clearTimeout(goldenTimer);goldenTimer=setTimeout(function(){goldenEl.style.display='none';goldenActive=false;scheduleGolden();},13000);}
+function scheduleGolden(){setTimeout(spawnGolden,5000+Math.random()*5000);}
 
-function scheduleGolden(){
-  setTimeout(spawnGolden,5000+Math.random()*5000);
-}
-
-goldenEl=document.getElementById('golden-cookie');
-goldenEl.addEventListener('click',function(){
-  if(!running||!goldenActive)return;
-  getAudio();
-  goldenActive=false;
-  goldenEl.style.display='none';
-  if(goldenTimer)clearTimeout(goldenTimer);
-  // Give 1 minute of CPS
-  var bonus=cps*60;
-  if(bonus<100)bonus=100;
-  cookies+=bonus;
-  allTimeBaked+=bonus;
-  playGolden();
-  showNotif('Golden Cookie! +'+fmtNum(bonus)+' cookies!');
-  updateDisplay();
-  scheduleGolden();
-});
-
-var notifTimer=null;
-function showNotif(txt){
-  var n=document.getElementById('notif');
-  if(!n){n=document.createElement('div');n.id='notif';
-    n.style.cssText='position:fixed;top:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);border:2px solid #ffaa00;color:#ffff00;padding:8px 18px;border-radius:8px;font-size:14px;z-index:70;pointer-events:none;';
-    document.body.appendChild(n);}
-  n.textContent=txt;n.style.opacity='1';
-  if(notifTimer)clearTimeout(notifTimer);
-  notifTimer=setTimeout(function(){n.style.opacity='0';},2500);
-}
-
-// Auto-save
-function doSave(){
-  var data={cookies:cookies,allTimeBaked:allTimeBaked,
-    buildings:BUILDINGS.map(b=>({id:b.id,owned:b.owned})),
-    upgrades:UPGRADES.map(u=>({id:u.id,bought:u.bought}))};
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-}
-
-function doLoad(){
-  try{
-    var raw=localStorage.getItem(SAVE_KEY);
-    if(!raw)return false;
-    var data=JSON.parse(raw);
-    cookies=data.cookies||0;
-    allTimeBaked=data.allTimeBaked||0;
-    (data.buildings||[]).forEach(function(bd){
-      var b=BUILDINGS.find(b=>b.id===bd.id);
-      if(b)b.owned=bd.owned||0;
-    });
-    (data.upgrades||[]).forEach(function(ud){
-      var u=UPGRADES.find(u=>u.id===ud.id);
-      if(u)u.bought=!!ud.bought;
-    });
-    recalcCPS();
-    return true;
-  }catch(e){return false;}
-}
+function doSave(){localStorage.setItem(SAVE_KEY,JSON.stringify({cookies:cookies,allTimeBaked:allTimeBaked,buildings:BUILDINGS.map(function(b){return{id:b.id,owned:b.owned};}),upgrades:UPGRADES.map(function(u){return{id:u.id,bought:u.bought};})}));}
+function doLoad(){try{var raw=localStorage.getItem(SAVE_KEY);if(!raw)return false;var data=JSON.parse(raw);cookies=data.cookies||0;allTimeBaked=data.allTimeBaked||0;(data.buildings||[]).forEach(function(bd){var b=BUILDINGS.find(function(x){return x.id===bd.id;});if(b)b.owned=bd.owned||0;});(data.upgrades||[]).forEach(function(ud){var u=UPGRADES.find(function(x){return x.id===ud.id;});if(u)u.bought=!!ud.bought;});recalcCPS();return true;}catch(e){return false;}}
 
 function startGame(){
   if(running)return;
   running=true;
   document.getElementById('start-screen').style.display='none';
-  recalcCPS();
-  updateDisplay();
-  setupShopListeners();
-  startTicking();
+  recalcCPS();updateDisplay();startTicking();
   if(autoSaveInterval)clearInterval(autoSaveInterval);
-  autoSaveInterval=setInterval(function(){doSave();},10000);
+  autoSaveInterval=setInterval(doSave,10000);
   scheduleGolden();
 }
 
-document.getElementById('start-btn').addEventListener('click',function(){
-  getAudio();
-  startGame();
-});
-document.getElementById('start-btn').addEventListener('touchend',function(e){
-  e.preventDefault();
-  getAudio();
-  startGame();
-},{passive:false});
-
-document.getElementById('cookie-wrap').addEventListener('click',function(e){
-  if(!running){startGame();}
-  clickCookie(e);
-});
-document.getElementById('cookie-wrap').addEventListener('touchend',function(e){
-  e.preventDefault();
-  if(!running){startGame();}
-  clickCookie(e.changedTouches[0]);
-},{passive:false});
-document.getElementById('cookie-wrap').addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
+(function(){
+  var btn=document.getElementById('start-btn');
+  btn.addEventListener('touchstart',function(e){e.preventDefault();},{passive:false});
+  btn.addEventListener('touchend',function(e){e.preventDefault();getAudio();startGame();},{passive:false});
+  btn.addEventListener('click',function(){getAudio();startGame();});
+})();
 
 document.getElementById('reset-btn').addEventListener('click',function(){
-  if(!confirm('Reset all progress? This cannot be undone!'))return;
-  localStorage.removeItem(SAVE_KEY);
-  localStorage.removeItem(HS_KEY);
-  cookies=0;allTimeBaked=0;
-  BUILDINGS.forEach(b=>b.owned=0);
-  UPGRADES.forEach(u=>u.bought=false);
-  recalcCPS();
-  updateDisplay();
+  if(!confirm('Reset all progress?'))return;
+  localStorage.removeItem(SAVE_KEY);localStorage.removeItem(HS_KEY);
+  cookies=0;allTimeBaked=0;BUILDINGS.forEach(function(b){b.owned=0;});UPGRADES.forEach(function(u){u.bought=false;});
+  recalcCPS();updateDisplay();
 });
 
-// Load save on start
 doLoad();
-// Show start screen with save info
-var hasSave=allTimeBaked>0;
-if(hasSave){
-  document.querySelector('#start-screen p').textContent='Welcome back! You baked '+fmtNum(allTimeBaked)+' cookies total!';
-}
-
+if(allTimeBaked>0)document.querySelector('#start-screen p').textContent='Welcome back! You baked '+fmtNum(allTimeBaked)+' cookies!';
 updateDisplay();
 </script>
 </body>
