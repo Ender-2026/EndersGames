@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Math Blitz - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+    #home-btn-wrap a { position: fixed; top: 8px; left: 10px; color: #ff9999; text-decoration: none; font-size: 13px; z-index: 99; }
+    h1 { font-size: 28px; color: yellow; margin-bottom: 6px; text-align: center; }
+    #start-screen, #game-screen, #end-screen { width: 100%; max-width: 480px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    #end-screen { display: none; }
+    #game-screen { display: none; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 28px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.5); }
+    .diff-row { display: flex; gap: 10px; }
+    .diff-btn { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 8px; padding: 8px 18px; font-size: 15px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+    .diff-btn.selected { background: #cc0000; color: yellow; border-color: yellow; }
+    /* HUD */
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 15px; font-weight: bold; color: #ffcc00; }
+    #timer-wrap { position: relative; width: 100%; height: 10px; background: #3a0000; border-radius: 5px; overflow: hidden; }
+    #timer-bar { height: 100%; background: #ff6600; transition: width 0.5s linear, background 0.5s; border-radius: 5px; }
+    #problem { font-size: 52px; color: yellow; font-weight: bold; letter-spacing: 2px; text-align: center; min-height: 70px; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
+    #answer-row { display: flex; gap: 10px; align-items: center; }
+    #answer-input { background: #2a0000; border: 2px solid #ff6666; color: white; font-size: 28px; text-align: center; width: 150px; padding: 8px; border-radius: 8px; outline: none; }
+    #answer-input:focus { border-color: yellow; }
+    #submit-btn { background: darkred; border: 2px solid #ff6666; color: white; font-size: 24px; border-radius: 8px; padding: 8px 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #feedback { font-size: 32px; font-weight: bold; min-height: 40px; text-align: center; }
+    #streak-msg { font-size: 18px; color: #ffaa00; min-height: 26px; text-align: center; }
+    /* End screen */
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 18px; border-bottom: 1px solid #3a0000; padding: 6px 0; }
+    .stat-label { color: #ffcccc; }
+    .stat-val { color: yellow; font-weight: bold; }
+    #lb-section { width: 100%; }
+    #lb-list { width: 100%; max-height: 160px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    @keyframes flash-green { 0%,100% { background: #1a0000; } 50% { background: #003300; } }
+    @keyframes flash-red { 0%,100% { background: #1a0000; } 50% { background: #330000; } }
+    .flash-correct { animation: flash-green 0.3s ease; }
+    .flash-wrong { animation: flash-red 0.3s ease; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<!-- START SCREEN -->
+<div id="start-screen">
+  <h1>➕ Math Blitz</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:15px;">Answer math problems as fast as you can in 60 seconds!</p>
+  <div class="diff-row">
+    <button class="diff-btn selected" onclick="selectDiff(this,'easy')">Easy</button>
+    <button class="diff-btn" onclick="selectDiff(this,'medium')">Medium</button>
+    <button class="diff-btn" onclick="selectDiff(this,'hard')">Hard</button>
+  </div>
+  <p id="diff-desc" style="color:#ffaa88;font-size:13px;text-align:center;">Add &amp; subtract with numbers 1–10</p>
+  <button class="btn" onclick="startGame()">▶ Start Game</button>
+  <div id="lb-section">
+    <p style="color:yellow;font-size:14px;font-weight:bold;margin-bottom:4px;">🏆 Top Scores</p>
+    <div id="lb-list"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen">
+  <div id="hud">
+    <span>⭐ <span id="score-display">0</span></span>
+    <span>🔥 Streak: <span id="streak-display">0</span></span>
+    <span>⏱ <span id="time-display">60</span>s</span>
+  </div>
+  <div id="timer-wrap"><div id="timer-bar" style="width:100%"></div></div>
+  <div id="problem">?</div>
+  <div id="feedback"></div>
+  <div id="streak-msg"></div>
+  <div id="answer-row">
+    <input id="answer-input" type="number" inputmode="numeric" placeholder="?" autocomplete="off">
+    <button id="submit-btn" onclick="submitAnswer()">✓</button>
+  </div>
+  <p style="color:#ff9999;font-size:12px;">Press Enter or tap ✓</p>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <h1>⏱ Time's Up!</h1>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="final-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Best Streak</span><span class="stat-val" id="final-streak">0</span></div>
+  <div class="stat-row"><span class="stat-label">Accuracy</span><span class="stat-val" id="final-acc">0%</span></div>
+  <div class="stat-row"><span class="stat-label">High Score</span><span class="stat-val" id="high-score">0</span></div>
+  <button class="btn" onclick="restartGame()">🔄 Play Again</button>
+  <div id="lb-section-end">
+    <p style="color:yellow;font-size:14px;font-weight:bold;margin-bottom:4px;">🏆 Top Scores</p>
+    <div id="lb-list-end"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+  </div>
+</div>
+
+<script>
+  // Firebase
+  const fbConfig = {
+    apiKey: "AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",
+    authDomain: "enders-games.firebaseapp.com",
+    databaseURL: "https://enders-games-default-rtdb.firebaseio.com",
+    projectId: "enders-games",
+    storageBucket: "enders-games.firebasestorage.app",
+    messagingSenderId: "87049074470",
+    appId: "1:87049074470:web:bc38b35669b43aedceb3e7"
+  };
+  const fbApp = firebase.initializeApp(fbConfig, 'lb_mathblitz');
+  const db = firebase.database(fbApp);
+  const HS_KEY = 'hs_mathblitz';
+
+  // Audio
+  let audioCtx = null;
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function playBeep(freq, dur, type='sine', vol=0.3) {
+    try {
+      const ctx = getAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = type; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      osc.start(); osc.stop(ctx.currentTime + dur);
+    } catch(e) {}
+  }
+  function playCorrect() {
+    playBeep(523, 0.1); setTimeout(()=>playBeep(659, 0.1), 80); setTimeout(()=>playBeep(784, 0.15), 160);
+  }
+  function playWrong() {
+    playBeep(200, 0.2, 'sawtooth', 0.2);
+  }
+
+  // Game state
+  let diff = 'easy';
+  let score = 0, streak = 0, bestStreak = 0;
+  let totalQ = 0, correctQ = 0;
+  let timeLeft = 60;
+  let timerInterval = null;
+  let currentAnswer = 0;
+  let gameActive = false;
+
+  const diffDescs = {
+    easy: 'Add &amp; subtract with numbers 1–10',
+    medium: 'All operations with numbers 1–12',
+    hard: 'All operations including division, numbers 1–20'
+  };
+
+  function selectDiff(btn, d) {
+    diff = d;
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('diff-desc').innerHTML = diffDescs[d];
+  }
+
+  function genProblem() {
+    let a, b, op, ans;
+    const ops = diff === 'easy' ? ['+','-'] : ['+','-','×','÷'];
+    op = ops[Math.floor(Math.random() * ops.length)];
+    const max = diff === 'easy' ? 10 : diff === 'medium' ? 12 : 20;
+
+    if (op === '+') {
+      a = rand(1, max); b = rand(1, max); ans = a + b;
+    } else if (op === '-') {
+      a = rand(2, max); b = rand(1, a); ans = a - b;
+    } else if (op === '×') {
+      a = rand(2, max); b = rand(2, max); ans = a * b;
+    } else { // ÷
+      ans = rand(2, max); b = rand(2, 12); a = ans * b; // ensure whole number
+    }
+    currentAnswer = ans;
+    document.getElementById('problem').textContent = `${a} ${op} ${b} = ?`;
+  }
+
+  function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+  function startGame() {
+    getAudio(); // lazy init on user click
+    score = 0; streak = 0; bestStreak = 0; totalQ = 0; correctQ = 0; timeLeft = 60; gameActive = true;
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('end-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'flex';
+    updateHUD();
+    genProblem();
+    document.getElementById('answer-input').value = '';
+    document.getElementById('answer-input').focus();
+    document.getElementById('feedback').textContent = '';
+    document.getElementById('streak-msg').textContent = '';
+    timerInterval = setInterval(tick, 1000);
+  }
+
+  function tick() {
+    timeLeft--;
+    updateHUD();
+    const pct = (timeLeft / 60) * 100;
+    document.getElementById('timer-bar').style.width = pct + '%';
+    document.getElementById('timer-bar').style.background = timeLeft > 20 ? '#ff6600' : '#ff0000';
+    if (timeLeft <= 0) endGame();
+  }
+
+  function updateHUD() {
+    document.getElementById('score-display').textContent = score;
+    document.getElementById('streak-display').textContent = streak;
+    document.getElementById('time-display').textContent = timeLeft;
+  }
+
+  function submitAnswer() {
+    if (!gameActive) return;
+    const inp = document.getElementById('answer-input');
+    const val = parseInt(inp.value, 10);
+    if (isNaN(val)) return;
+    totalQ++;
+    if (val === currentAnswer) {
+      correctQ++;
+      score += 10;
+      streak++;
+      if (streak > bestStreak) bestStreak = streak;
+      playCorrect();
+      document.getElementById('feedback').innerHTML = '<span style="color:#00ff88">✓ Correct!</span>';
+      document.body.classList.remove('flash-wrong'); document.body.classList.add('flash-correct');
+      setTimeout(() => document.body.classList.remove('flash-correct'), 300);
+      const msgs = ['', '', '', '🔥 On Fire!', '⭐ Amazing!', '💪 Keep it up!', '🚀 Blazing!', '🌟 Superstar!', '🏆 Unstoppable!'];
+      document.getElementById('streak-msg').textContent = streak >= 3 ? (msgs[Math.min(streak, msgs.length-1)] || '🔥 Hot streak!') : '';
+    } else {
+      streak = 0;
+      playWrong();
+      document.getElementById('feedback').innerHTML = `<span style="color:#ff4444">✗</span> <span style="color:#ffaa00">Answer: ${currentAnswer}</span>`;
+      document.body.classList.remove('flash-correct'); document.body.classList.add('flash-wrong');
+      setTimeout(() => document.body.classList.remove('flash-wrong'), 300);
+      document.getElementById('streak-msg').textContent = '';
+    }
+    updateHUD();
+    inp.value = '';
+    setTimeout(() => {
+      genProblem();
+      document.getElementById('feedback').textContent = '';
+      inp.focus();
+    }, 400);
+  }
+
+  function endGame() {
+    clearInterval(timerInterval);
+    gameActive = false;
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('end-screen').style.display = 'flex';
+    const acc = totalQ > 0 ? Math.round((correctQ / totalQ) * 100) : 0;
+    document.getElementById('final-score').textContent = score;
+    document.getElementById('final-streak').textContent = bestStreak;
+    document.getElementById('final-acc').textContent = acc + '%';
+    const hs = Math.max(score, parseInt(localStorage.getItem(HS_KEY) || '0'));
+    localStorage.setItem(HS_KEY, hs);
+    document.getElementById('high-score').textContent = hs;
+    // Submit to leaderboard
+    if (score > 0) {
+      const playerName = localStorage.getItem('visitorName') || 'Player';
+      db.ref('leaderboard/mathblitz/' + Date.now()).set({name: playerName, score: score, date: new Date().toLocaleDateString()});
+    }
+    loadLeaderboard('lb-list-end');
+  }
+
+  function restartGame() {
+    document.getElementById('end-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+    loadLeaderboard('lb-list');
+  }
+
+  function loadLeaderboard(targetId) {
+    db.ref('leaderboard/mathblitz').orderByChild('score').limitToLast(10).once('value').then(snap => {
+      const entries = [];
+      snap.forEach(c => entries.push(c.val()));
+      entries.sort((a,b) => b.score - a.score);
+      const el = document.getElementById(targetId);
+      if (!entries.length) { el.innerHTML = '<p style="color:#ff9999;font-size:13px;">No scores yet!</p>'; return; }
+      el.innerHTML = entries.map((e,i) =>
+        `<div class="lb-row"><span>${i+1}. ${e.name}</span><span style="color:yellow">${e.score}</span><span style="color:#ff9999;font-size:11px">${e.date||''}</span></div>`
+      ).join('');
+    }).catch(() => {});
+  }
+
+  // Enter key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && gameActive) submitAnswer();
+  });
+
+  // Load LB on start
+  loadLeaderboard('lb-list');
+</script>
+</body>
+</html>

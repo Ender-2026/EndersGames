@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Grammar Fix - Ender's Game World</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a0000;color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:50px 10px 30px}
+  h1{color:#ffff00;font-size:2em;text-shadow:0 0 10px #ff0;margin-bottom:5px;text-align:center}
+  .subtitle{color:#ff9999;font-size:0.9em;margin-bottom:15px}
+  #score-bar{display:flex;gap:20px;align-items:center;margin-bottom:15px;flex-wrap:wrap;justify-content:center}
+  .stat{background:#2a0000;border:1px solid #ff6666;border-radius:8px;padding:6px 14px;font-size:0.95em}
+  .stat span{color:#ffff00;font-weight:bold}
+  #progress-bar{width:100%;max-width:500px;height:10px;background:#3a0000;border-radius:5px;margin-bottom:15px;overflow:hidden}
+  #progress-fill{height:100%;background:linear-gradient(90deg,#ff6600,#ffff00);border-radius:5px;transition:width 0.4s}
+  #game-area{width:100%;max-width:560px}
+  #instruction{color:#ffcc66;font-size:0.9em;text-align:center;margin-bottom:10px;min-height:1.2em}
+  #sentence-box{background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:20px;margin-bottom:15px;line-height:2.2em;text-align:center;font-size:1.15em}
+  .word-btn{display:inline-block;margin:2px 3px;padding:4px 8px;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;font-size:1.1em;color:#fff;transition:all 0.2s;font-family:inherit}
+  .word-btn:hover{background:#3a0000;border-color:#ff9999}
+  .word-btn.selected-wrong{background:#cc0000;border-color:#ff0000;color:#fff;animation:shake 0.3s}
+  .word-btn.correct-word{background:#006600;border-color:#00cc00;color:#fff}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  #choices-area{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:15px}
+  .choice-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 20px;border-radius:10px;font-size:1.05em;cursor:pointer;transition:all 0.2s;font-family:inherit}
+  .choice-btn:hover{background:#660000;border-color:#ffff00;transform:scale(1.05)}
+  .choice-btn.flash-correct{background:#006600;border-color:#00ff00;animation:flash-g 0.5s}
+  .choice-btn.flash-wrong{background:#660000;border-color:#ff0000;animation:flash-r 0.5s}
+  @keyframes flash-g{0%,100%{background:#006600}50%{background:#00cc00}}
+  @keyframes flash-r{0%,100%{background:#660000}50%{background:#ff4444}}
+  #explanation-box{background:#1a1a00;border:2px solid #ffff00;border-radius:12px;padding:15px;margin-bottom:15px;display:none}
+  #explanation-box .ex-title{color:#ffff00;font-weight:bold;margin-bottom:6px;font-size:1em}
+  #explanation-box .before-after{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .ba-card{flex:1;min-width:120px;background:#2a0000;border:1px solid #ff6666;border-radius:8px;padding:8px;font-size:0.85em}
+  .ba-card .ba-label{color:#ff9999;font-size:0.75em;margin-bottom:3px}
+  .ba-card .ba-text{color:#fff}
+  .ba-card .ba-text .highlight-wrong{color:#ff6666;text-decoration:line-through}
+  .ba-card .ba-text .highlight-correct{color:#66ff66;font-weight:bold}
+  #next-btn{display:none;background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 30px;border-radius:10px;font-size:1.1em;cursor:pointer;margin:0 auto;display:none;font-family:inherit}
+  #next-btn:hover{background:#660000;border-color:#ffff00}
+  #hint-btn{background:transparent;border:1px solid #ff9999;color:#ff9999;padding:6px 14px;border-radius:8px;font-size:0.85em;cursor:pointer;margin-bottom:10px;font-family:inherit}
+  #hint-btn:hover{background:#2a0000}
+  #end-screen{display:none;text-align:center;width:100%;max-width:560px}
+  #end-screen h2{color:#ffff00;font-size:2em;margin-bottom:10px}
+  #end-score{font-size:1.5em;color:#ffcc66;margin-bottom:20px}
+  #lb-form{background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:20px;margin-bottom:20px}
+  #lb-form input{background:#1a0000;border:1px solid #ff6666;color:#fff;padding:8px 12px;border-radius:6px;font-size:1em;width:100%;margin-bottom:10px;font-family:inherit}
+  #lb-form button{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 24px;border-radius:8px;font-size:1em;cursor:pointer;font-family:inherit}
+  #lb-list{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:15px;margin-bottom:15px;max-height:200px;overflow-y:auto}
+  #lb-list .lb-entry{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #3a0000;font-size:0.9em}
+  #lb-list .lb-entry:last-child{border:none}
+  #play-again-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 30px;border-radius:10px;font-size:1.1em;cursor:pointer;font-family:inherit}
+  #play-again-btn:hover{background:#660000;border-color:#ffff00}
+  .grade-badge{font-size:2em;margin-bottom:10px}
+  #start-screen{text-align:center;width:100%;max-width:560px}
+  #start-screen p{color:#ffcc66;margin-bottom:15px;line-height:1.6}
+  #start-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:14px 36px;border-radius:10px;font-size:1.2em;cursor:pointer;font-family:inherit}
+  #start-btn:hover{background:#660000;border-color:#ffff00;transform:scale(1.05)}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<h1>📝 Grammar Fix</h1>
+<p class="subtitle">Find and fix grammar mistakes!</p>
+
+<div id="start-screen">
+  <p>Read each sentence carefully.<br>
+  Tap the <strong style="color:#ff6666">wrong word</strong>, then pick the correct replacement.<br>
+  Score points for every fix! Hints cost 50 points.</p>
+  <button id="start-btn">▶ Start Game</button>
+</div>
+
+<div id="score-bar" style="display:none">
+  <div class="stat">Score: <span id="score-val">0</span></div>
+  <div class="stat">Question: <span id="q-num">1</span>/15</div>
+  <div class="stat">Streak: <span id="streak-val">0</span>🔥</div>
+</div>
+<div id="progress-bar" style="display:none"><div id="progress-fill" style="width:0%"></div></div>
+
+<div id="game-area" style="display:none">
+  <p id="instruction">Tap the incorrect word in the sentence below:</p>
+  <div id="sentence-box"></div>
+  <div style="text-align:center"><button id="hint-btn">💡 Hint (-50 pts)</button></div>
+  <div id="choices-area" style="display:none"></div>
+  <div id="explanation-box">
+    <div class="ex-title" id="ex-title"></div>
+    <div id="ex-text"></div>
+    <div class="before-after">
+      <div class="ba-card"><div class="ba-label">❌ BEFORE</div><div class="ba-text" id="ba-before"></div></div>
+      <div class="ba-card"><div class="ba-label">✅ AFTER</div><div class="ba-text" id="ba-after"></div></div>
+    </div>
+  </div>
+  <div style="text-align:center"><button id="next-btn">Next →</button></div>
+</div>
+
+<div id="end-screen">
+  <div class="grade-badge" id="grade-badge"></div>
+  <h2>Round Complete!</h2>
+  <div id="end-score"></div>
+  <div id="lb-form">
+    <p style="color:#ffcc66;margin-bottom:10px">Submit your score to the leaderboard:</p>
+    <input type="text" id="lb-name" placeholder="Your name" maxlength="20">
+    <button id="lb-submit-btn">Submit Score</button>
+  </div>
+  <div id="lb-list"></div>
+  <button id="play-again-btn">🔄 Play Again</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script>
+const fbConfig = {
+  apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",
+  authDomain:"enders-games.firebaseapp.com",
+  databaseURL:"https://enders-games-default-rtdb.firebaseio.com",
+  projectId:"engers-games",
+  storageBucket:"enders-games.firebasestorage.app",
+  messagingSenderId:"87049074470",
+  appId:"1:87049074470:web:bc38b35669b43aedceb3e7"
+};
+const fbApp = firebase.initializeApp(fbConfig, 'lb_grammarfix');
+const db = firebase.database(fbApp);
+const HS_KEY = 'hs_grammarfix';
+
+let audioCtx = null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function beep(freq,dur,type='sine',vol=0.3){
+  try{const a=getAudio();const o=a.createOscillator();const g=a.createGain();
+  o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
+  o.start();o.stop(a.currentTime+dur);}catch(e){}}
+function playCorrect(){beep(523,0.1);setTimeout(()=>beep(659,0.1),100);setTimeout(()=>beep(784,0.2),200);}
+function playWrong(){beep(200,0.3,'sawtooth',0.2);}
+function playSelect(){beep(440,0.08);}
+
+const sentences = [
+  {text:"She don't like apples.",words:["She","don't","like","apples."],wrongIdx:1,wrongWord:"don't",choices:["doesn't","didn't","not"],correct:"doesn't",explanation:"\"Don't\" is used with I/you/we/they. \"She\" is singular, so we use \"doesn't\".",type:"Subject-verb agreement"},
+  {text:"Yesterday I runned to school.",words:["Yesterday","I","runned","to","school."],wrongIdx:2,wrongWord:"runned",choices:["ran","running","runs"],correct:"ran",explanation:"\"Run\" is an irregular verb. Its past tense is \"ran\", not \"runned\"!",type:"Irregular past tense"},
+  {text:"The dogs is barking.",words:["The","dogs","is","barking."],wrongIdx:2,wrongWord:"is",choices:["are","was","be"],correct:"are",explanation:"\"Dogs\" is plural, so we need the plural verb \"are\", not \"is\".",type:"Plural subject-verb agreement"},
+  {text:"Me and him went to the store.",words:["Me","and","him","went","to","the","store."],wrongIdx:0,wrongWord:"Me",choices:["He and I","Him and I","I and he"],correct:"He and I",explanation:"Use subject pronouns \"He and I\" when referring to the people doing the action.",type:"Pronoun case"},
+  {text:"Its raining outside.",words:["Its","raining","outside."],wrongIdx:0,wrongWord:"Its",choices:["It's","It","Its'"],correct:"It's",explanation:"\"It's\" with an apostrophe means \"it is\". \"Its\" without one shows ownership.",type:"Its vs It's"},
+  {text:"The cat licked it's paw.",words:["The","cat","licked","it's","paw."],wrongIdx:3,wrongWord:"it's",choices:["its","it","its'"],correct:"its",explanation:"Here the cat owns the paw, so we use \"its\" (no apostrophe) to show possession.",type:"Its vs It's"},
+  {text:"i love science class.",words:["i","love","science","class."],wrongIdx:0,wrongWord:"i",choices:["I","me","My"],correct:"I",explanation:"The word \"I\" referring to yourself is ALWAYS capitalized, no matter where it appears!",type:"Capitalization"},
+  {text:"They was playing soccer.",words:["They","was","playing","soccer."],wrongIdx:1,wrongWord:"was",choices:["were","are","be"],correct:"were",explanation:"\"They\" is plural, so it pairs with \"were\", not \"was\".",type:"Subject-verb agreement"},
+  {text:"She sitted down quietly.",words:["She","sitted","down","quietly."],wrongIdx:1,wrongWord:"sitted",choices:["sat","setted","sit"],correct:"sat",explanation:"\"Sit\" is an irregular verb. Its past tense is \"sat\", not \"sitted\"!",type:"Irregular past tense"},
+  {text:"The childrens are happy.",words:["The","childrens","are","happy."],wrongIdx:1,wrongWord:"childrens",choices:["children","childs","childrenes"],correct:"children",explanation:"\"Children\" is already the plural of \"child\". You never add an \"s\" to \"children\"!",type:"Irregular plural"},
+  {text:"He gived me a book.",words:["He","gived","me","a","book."],wrongIdx:1,wrongWord:"gived",choices:["gave","given","gives"],correct:"gave",explanation:"\"Give\" is irregular. Its past tense is \"gave\", not \"gived\"!",type:"Irregular past tense"},
+  {text:"We seen the movie.",words:["We","seen","the","movie."],wrongIdx:1,wrongWord:"seen",choices:["saw","have seen","see"],correct:"saw",explanation:"\"Saw\" is the simple past of \"see\". \"Seen\" needs a helper verb: \"We have seen\".",type:"Past tense"},
+  {text:"The team are winning the game.",words:["The","team","are","winning","the","game."],wrongIdx:2,wrongWord:"are",choices:["is","was","be"],correct:"is",explanation:"\"Team\" is a collective noun — it acts as one group, so it takes \"is\" (singular).",type:"Collective noun"},
+  {text:"Her and me went swimming.",words:["Her","and","me","went","swimming."],wrongIdx:0,wrongWord:"Her",choices:["She and I","Her and I","She and me"],correct:"She and I",explanation:"Use subject pronouns \"She and I\" when they are doing the action (going swimming).",type:"Pronoun case"},
+  {text:"I have went to Paris.",words:["I","have","went","to","Paris."],wrongIdx:2,wrongWord:"went",choices:["gone","go","been going"],correct:"gone",explanation:"With \"have\", use the past participle \"gone\". \"Went\" is simple past and doesn't need a helper.",type:"Past participle"},
+  {text:"There going to the park.",words:["There","going","to","the","park."],wrongIdx:0,wrongWord:"There",choices:["They're","Their","Theyre"],correct:"They're",explanation:"\"They're\" is a contraction of \"they are\". \"There\" is a place. \"Their\" shows ownership.",type:"Homophones"},
+  {text:"The dog wagged it's tail.",words:["The","dog","wagged","it's","tail."],wrongIdx:3,wrongWord:"it's",choices:["its","it","its'"],correct:"its",explanation:"The dog owns the tail, so use \"its\" (no apostrophe) to show possession.",type:"Its vs It's"},
+  {text:"He don't know the answer.",words:["He","don't","know","the","answer."],wrongIdx:1,wrongWord:"don't",choices:["doesn't","didn't","not"],correct:"doesn't",explanation:"\"He\" is singular, so it pairs with \"doesn't\", not \"don't\".",type:"Subject-verb agreement"},
+  {text:"We bringed our lunch.",words:["We","bringed","our","lunch."],wrongIdx:1,wrongWord:"bringed",choices:["brought","brung","brang"],correct:"brought",explanation:"\"Bring\" is irregular. Its past tense is \"brought\", not \"bringed\"!",type:"Irregular past tense"},
+  {text:"The childs played outside.",words:["The","childs","played","outside."],wrongIdx:1,wrongWord:"childs",choices:["children","childes","child's"],correct:"children",explanation:"The plural of \"child\" is the irregular form \"children\", not \"childs\"!",type:"Irregular plural"},
+];
+
+let gameQuestions = [];
+let currentQ = 0;
+let score = 0;
+let streak = 0;
+let hintUsed = false;
+let wordSelected = false;
+let answered = false;
+
+function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
+
+function initGame(){
+  gameQuestions = shuffle(sentences).slice(0,15);
+  currentQ = 0; score = 0; streak = 0;
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('score-bar').style.display='flex';
+  document.getElementById('progress-bar').style.display='block';
+  document.getElementById('game-area').style.display='block';
+  showQuestion();
+}
+
+function showQuestion(){
+  hintUsed = false; wordSelected = false; answered = false;
+  const q = gameQuestions[currentQ];
+  document.getElementById('q-num').textContent = currentQ+1;
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('streak-val').textContent = streak;
+  document.getElementById('progress-fill').style.width = ((currentQ/15)*100)+'%';
+  document.getElementById('instruction').textContent = 'Tap the incorrect word in the sentence:';
+  document.getElementById('choices-area').style.display='none';
+  document.getElementById('choices-area').innerHTML='';
+  document.getElementById('explanation-box').style.display='none';
+  document.getElementById('next-btn').style.display='none';
+  document.getElementById('hint-btn').style.display='inline-block';
+  document.getElementById('hint-btn').disabled=false;
+
+  const box = document.getElementById('sentence-box');
+  box.innerHTML = '';
+  q.words.forEach((word, idx) => {
+    const btn = document.createElement('button');
+    btn.className='word-btn';
+    btn.textContent=word;
+    btn.dataset.idx=idx;
+    btn.addEventListener('click',()=>onWordClick(idx));
+    box.appendChild(btn);
+  });
+}
+
+function onWordClick(idx){
+  if(answered) return;
+  const q = gameQuestions[currentQ];
+  playSelect();
+  const btns = document.querySelectorAll('.word-btn');
+  btns.forEach(b=>b.classList.remove('selected-wrong'));
+  if(idx === q.wrongIdx){
+    wordSelected = true;
+    btns[idx].classList.add('selected-wrong');
+    showChoices();
+  } else {
+    btns[idx].style.background='#440000';
+    setTimeout(()=>{btns[idx].style.background='';},500);
+    document.getElementById('instruction').textContent='That word is okay! Try another word.';
+  }
+}
+
+function showChoices(){
+  const q = gameQuestions[currentQ];
+  document.getElementById('instruction').textContent='Now choose the correct word:';
+  document.getElementById('hint-btn').style.display='none';
+  const area = document.getElementById('choices-area');
+  area.style.display='flex';
+  area.innerHTML='';
+  shuffle(q.choices).forEach(ch=>{
+    const btn=document.createElement('button');
+    btn.className='choice-btn';
+    btn.textContent=ch;
+    btn.addEventListener('click',()=>onChoiceClick(ch));
+    area.appendChild(btn);
+  });
+}
+
+function onChoiceClick(choice){
+  if(answered) return;
+  answered = true;
+  const q = gameQuestions[currentQ];
+  const btns = document.querySelectorAll('.choice-btn');
+  if(choice === q.correct){
+    playCorrect();
+    btns.forEach(b=>{if(b.textContent===choice)b.classList.add('flash-correct');});
+    score += hintUsed ? 50 : 100;
+    streak++;
+    showExplanation(true, q);
+  } else {
+    playWrong();
+    btns.forEach(b=>{if(b.textContent===choice)b.classList.add('flash-wrong');
+      if(b.textContent===q.correct)b.classList.add('flash-correct');});
+    streak=0;
+    showExplanation(false, q);
+  }
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('streak-val').textContent=streak;
+}
+
+function showExplanation(correct, q){
+  const box = document.getElementById('explanation-box');
+  box.style.display='block';
+  document.getElementById('ex-title').textContent = (correct?'✅ Correct! ':'❌ Oops! ') + q.type;
+  document.getElementById('ex-text').textContent = q.explanation;
+
+  const before = q.words.map((w,i)=>i===q.wrongIdx?`<span class="highlight-wrong">${w}</span>`:w).join(' ');
+  const after = q.words.map((w,i)=>i===q.wrongIdx?`<span class="highlight-correct">${q.correct}</span>`:w).join(' ');
+  document.getElementById('ba-before').innerHTML=before;
+  document.getElementById('ba-after').innerHTML=after;
+
+  const nb = document.getElementById('next-btn');
+  nb.style.display='block';
+  nb.textContent = currentQ<14 ? 'Next →' : 'See Results 🏆';
+}
+
+function onHint(){
+  hintUsed=true;
+  const q=gameQuestions[currentQ];
+  const btns=document.querySelectorAll('.word-btn');
+  btns[q.wrongIdx].style.borderColor='#ffff00';
+  btns[q.wrongIdx].style.color='#ffff00';
+  document.getElementById('hint-btn').disabled=true;
+  document.getElementById('instruction').textContent='Hint: The yellow word is wrong — tap it!';
+}
+
+function nextQuestion(){
+  currentQ++;
+  if(currentQ>=15){endGame();} else {showQuestion();}
+}
+
+function endGame(){
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('score-bar').style.display='none';
+  document.getElementById('progress-bar').style.display='none';
+  const pct = Math.round((score/1500)*100);
+  let badge='😊';
+  if(pct>=90)badge='🏆';else if(pct>=75)badge='⭐';else if(pct>=60)badge='👍';
+  document.getElementById('grade-badge').textContent=badge;
+  document.getElementById('end-score').innerHTML=`You scored <strong style="color:#ffff00">${score}</strong> / 1500 points<br><small style="color:#ff9999">${pct}% — ${pct>=90?'Grammar Master!':pct>=75?'Great Job!':pct>=60?'Good Work!':'Keep Practicing!'}</small>`;
+  document.getElementById('end-screen').style.display='block';
+  const saved = localStorage.getItem(HS_KEY)||0;
+  if(score>saved)localStorage.setItem(HS_KEY,score);
+  const name = localStorage.getItem('visitorName');
+  if(name)document.getElementById('lb-name').value=name;
+  loadLeaderboard();
+}
+
+function loadLeaderboard(){
+  db.ref('leaderboard/grammarfix').orderByChild('score').limitToLast(10).once('value',snap=>{
+    const entries=[];
+    snap.forEach(c=>entries.push(c.val()));
+    entries.sort((a,b)=>b.score-a.score);
+    const list=document.getElementById('lb-list');
+    if(!entries.length){list.innerHTML='<p style="color:#ff9999;text-align:center">No scores yet!</p>';return;}
+    list.innerHTML='<strong style="color:#ffff00">Top Scores</strong><br>'+entries.map((e,i)=>`<div class="lb-entry"><span>#${i+1} ${e.name}</span><span style="color:#ffff00">${e.score}</span></div>`).join('');
+  });
+}
+
+document.getElementById('start-btn').addEventListener('click',initGame);
+document.getElementById('next-btn').addEventListener('click',nextQuestion);
+document.getElementById('hint-btn').addEventListener('click',onHint);
+document.getElementById('play-again-btn').addEventListener('click',initGame);
+document.getElementById('lb-submit-btn').addEventListener('click',()=>{
+  const name=document.getElementById('lb-name').value.trim()||'Player';
+  localStorage.setItem('visitorName',name);
+  db.ref('leaderboard/grammarfix/'+Date.now()).set({name,score,date:new Date().toLocaleDateString()});
+  document.getElementById('lb-submit-btn').textContent='Submitted! ✅';
+  document.getElementById('lb-submit-btn').disabled=true;
+  setTimeout(loadLeaderboard,800);
+});
+</script>
+</body>
+</html>

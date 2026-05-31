@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Word Wizard - Ender's Game World</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a0000;color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:50px 10px 30px}
+  h1{color:#ffff00;font-size:2em;text-shadow:0 0 10px #ff0;margin-bottom:4px;text-align:center}
+  .subtitle{color:#ff9999;font-size:0.9em;margin-bottom:14px}
+  #top-bar{display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap;justify-content:center}
+  .stat{background:#2a0000;border:1px solid #ff6666;border-radius:8px;padding:5px 12px;font-size:0.9em}
+  .stat span{color:#ffff00;font-weight:bold}
+  #stars-row{display:flex;gap:4px;justify-content:center;margin-bottom:10px;min-height:28px;flex-wrap:wrap}
+  .star-ic{font-size:1.4em;animation:pop 0.3s}
+  @keyframes pop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .level-up-msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#ffff00;color:#1a0000;font-size:2em;font-weight:bold;padding:20px 40px;border-radius:16px;z-index:999;animation:fadeout 1.8s forwards;pointer-events:none}
+  @keyframes fadeout{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1.1)}}
+  #game-area{width:100%;max-width:560px}
+  #mode-badge{text-align:center;font-size:0.8em;color:#ff9999;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+  #word-card{background:linear-gradient(135deg,#2a0000,#1a0000);border:2px solid #ff6666;border-radius:16px;padding:22px 20px;margin-bottom:14px;text-align:center}
+  #main-word{font-size:2.2em;color:#ffff00;font-weight:bold;text-shadow:0 0 10px #ff0;letter-spacing:2px;margin-bottom:6px}
+  #word-pos{color:#ff9999;font-size:0.8em;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+  #word-def{color:#ffcc88;font-size:1em;line-height:1.5;margin-bottom:6px}
+  #word-ex{color:#aaa;font-size:0.85em;font-style:italic}
+  #fill-sentence{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:12px;font-size:1em;color:#fff;line-height:1.8;margin-bottom:12px;text-align:center}
+  #fill-sentence .blank{background:#440000;border-bottom:2px solid #ffff00;padding:0 8px;color:#ffff00}
+  #choices-area{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:14px}
+  .choice-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 18px;border-radius:10px;font-size:1em;cursor:pointer;transition:all 0.2s;font-family:inherit;min-width:120px}
+  .choice-btn:hover{background:#660000;border-color:#ffff00;transform:scale(1.05)}
+  .choice-btn.flash-correct{background:#006600;border-color:#00ff00}
+  .choice-btn.flash-wrong{background:#660000;border-color:#ff0000}
+  #use-it-area{display:none}
+  #use-it-prompt{color:#ffcc66;font-size:0.95em;margin-bottom:10px;text-align:center}
+  #use-it-input{width:100%;background:#2a0000;border:2px solid #ff6666;color:#fff;padding:10px;border-radius:8px;font-size:1em;font-family:inherit;resize:vertical;min-height:80px}
+  #use-it-done{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:1em;margin-top:8px;display:block;margin-left:auto;margin-right:auto;font-family:inherit}
+  #funfact-box{background:#1a1a00;border:2px solid #ffff00;border-radius:12px;padding:14px;margin-bottom:14px;display:none}
+  #funfact-box .ff-title{color:#ffff00;font-weight:bold;margin-bottom:5px}
+  #funfact-text{color:#ffcc88;font-size:0.9em;line-height:1.5}
+  #next-btn{display:none;background:darkred;border:2px solid #ff6666;color:#fff;padding:11px 28px;border-radius:10px;font-size:1.05em;cursor:pointer;margin:0 auto;font-family:inherit;display:none}
+  #next-btn:hover{background:#660000;border-color:#ffff00}
+  #end-screen{display:none;text-align:center;width:100%;max-width:560px}
+  #end-screen h2{color:#ffff00;font-size:2em;margin-bottom:10px}
+  #end-score{font-size:1.4em;color:#ffcc66;margin-bottom:20px}
+  #lb-form{background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:18px;margin-bottom:18px}
+  #lb-form input{background:#1a0000;border:1px solid #ff6666;color:#fff;padding:8px 12px;border-radius:6px;font-size:1em;width:100%;margin-bottom:10px;font-family:inherit}
+  #lb-form button{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 22px;border-radius:8px;font-size:1em;cursor:pointer;font-family:inherit}
+  #lb-list{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:14px;margin-bottom:14px;max-height:200px;overflow-y:auto}
+  #lb-list .lb-entry{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #3a0000;font-size:0.9em}
+  #lb-list .lb-entry:last-child{border:none}
+  #play-again-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 30px;border-radius:10px;font-size:1.1em;cursor:pointer;font-family:inherit}
+  #start-screen{text-align:center;width:100%;max-width:560px}
+  #start-screen p{color:#ffcc66;margin-bottom:14px;line-height:1.6}
+  .mode-desc{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:10px;margin:8px 0;font-size:0.9em;text-align:left}
+  .mode-desc strong{color:#ffff00}
+  #start-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:14px 36px;border-radius:10px;font-size:1.2em;cursor:pointer;font-family:inherit;margin-top:10px}
+  #start-btn:hover{background:#660000;border-color:#ffff00}
+  #fb-msg{color:#ff9999;min-height:1.4em;text-align:center;margin-bottom:8px;font-style:italic}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<h1>🧙 Word Wizard</h1>
+<p class="subtitle">Master amazing vocabulary!</p>
+
+<div id="start-screen">
+  <p>Learn new words through 3 fun modes:</p>
+  <div class="mode-desc"><strong>🎯 Match It</strong> — See a word, pick the right definition</div>
+  <div class="mode-desc"><strong>📝 Fill It</strong> — See a definition, fill in the blank in a sentence</div>
+  <div class="mode-desc"><strong>✍️ Use It</strong> — Write your own sentence using the word!</div>
+  <p>Collect ⭐ stars! 5 stars = Level Up 🎉</p>
+  <button id="start-btn">▶ Start Wizard!</button>
+</div>
+
+<div id="top-bar" style="display:none">
+  <div class="stat">Score: <span id="score-val">0</span></div>
+  <div class="stat">Q: <span id="q-num">1</span>/15</div>
+  <div class="stat">Level: <span id="level-val">1</span></div>
+</div>
+<div id="stars-row" style="display:none"></div>
+
+<div id="game-area" style="display:none">
+  <div id="mode-badge"></div>
+  <div id="word-card">
+    <div id="main-word"></div>
+    <div id="word-pos"></div>
+    <div id="word-def"></div>
+    <div id="word-ex"></div>
+  </div>
+  <div id="fill-sentence" style="display:none"></div>
+  <div id="fb-msg"></div>
+  <div id="choices-area"></div>
+  <div id="use-it-area">
+    <p id="use-it-prompt"></p>
+    <textarea id="use-it-input" placeholder="Write your sentence here..."></textarea>
+    <button id="use-it-done">Done! ✓</button>
+  </div>
+  <div id="funfact-box">
+    <div class="ff-title">💡 Word Fact!</div>
+    <div id="funfact-text"></div>
+  </div>
+  <div style="text-align:center"><button id="next-btn">Next Word →</button></div>
+</div>
+
+<div id="end-screen">
+  <div style="font-size:2.5em" id="end-badge"></div>
+  <h2>Quest Complete!</h2>
+  <div id="end-score"></div>
+  <div id="lb-form">
+    <p style="color:#ffcc66;margin-bottom:10px">Submit your score:</p>
+    <input type="text" id="lb-name" placeholder="Your name" maxlength="20">
+    <button id="lb-submit-btn">Submit Score</button>
+  </div>
+  <div id="lb-list"></div>
+  <button id="play-again-btn">🔄 Play Again</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script>
+const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"engers-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
+const fbApp=firebase.initializeApp(fbConfig,'lb_wordwizard');
+const db=firebase.database(fbApp);
+const HS_KEY='hs_wordwizard';
+
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function beep(freq,dur,type='sine',vol=0.3){try{const a=getAudio();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.start();o.stop(a.currentTime+dur);}catch(e){}}
+function playCorrect(){beep(523,0.1);setTimeout(()=>beep(659,0.1),100);setTimeout(()=>beep(784,0.2),200);}
+function playWrong(){beep(200,0.3,'sawtooth',0.2);}
+function playLevelUp(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.2),i*120));}
+
+const vocab=[
+  {word:"abundant",pos:"adjective",def:"existing in large quantities; more than enough",ex:"The garden had abundant flowers — there were thousands of them!",fact:"From Latin 'abundare' = to overflow. Imagine a cup overflowing with water!",choices:["scarce and rare","extremely large in size","existing in large quantities","completely silent"],fill:"The forest was _____ with wildlife — birds, deer, and foxes everywhere.",fillBlanked:"abundant"},
+  {word:"ancient",pos:"adjective",def:"very old; from a time long ago",ex:"The ancient ruins had stood for over 3000 years.",fact:"From Latin 'ante' = before. Ancient things come from long BEFORE our time.",choices:["brand new and modern","very old, from long ago","extremely tiny","very colorful"],fill:"The _____ pyramid was built thousands of years ago.",fillBlanked:"ancient"},
+  {word:"courageous",pos:"adjective",def:"brave; willing to face danger or difficulty",ex:"The courageous firefighter rushed into the burning building.",fact:"Courage comes from Latin 'cor' = heart. Being brave takes heart!",choices:["very scared","moving quickly","brave and willing to face danger","extremely clever"],fill:"It took a _____ explorer to cross the dangerous mountain pass.",fillBlanked:"courageous"},
+  {word:"dedicate",pos:"verb",def:"to give time and effort to something important",ex:"She dedicated herself to learning piano, practicing every day.",fact:"From Latin 'dedicare' = to proclaim or assign. You're assigning yourself to a task!",choices:["to ignore something","to give effort to something important","to destroy quickly","to move slowly"],fill:"He chose to _____ his summers to helping animals at the shelter.",fillBlanked:"dedicate"},
+  {word:"enormous",pos:"adjective",def:"extremely large; much bigger than normal",ex:"The enormous elephant splashed happily in the river.",fact:"Literally means 'beyond the norm' — 'e' (out of) + 'norma' (the rule)!",choices:["extremely small","very fast","extremely large","very colorful"],fill:"The _____ whale was longer than a school bus!",fillBlanked:"enormous"},
+  {word:"fragile",pos:"adjective",def:"easily broken, damaged, or destroyed",ex:"Handle the fragile vase carefully — it might shatter!",fact:"From Latin 'frangere' = to break. The same root gives us 'fracture'!",choices:["very strong","easily broken or damaged","extremely cold","very loud"],fill:"The glass ornament was _____, so she wrapped it in soft cloth.",fillBlanked:"fragile"},
+  {word:"genuine",pos:"adjective",def:"truly what it appears to be; real and authentic",ex:"His genuine smile made everyone around him feel welcome.",fact:"From Latin 'genu' = knee. Roman fathers acknowledged a newborn by placing it on their knee — it was genuine!",choices:["fake or pretend","truly real and authentic","very small","extremely fast"],fill:"The scientist made a _____ discovery — it had never been seen before.",fillBlanked:"genuine"},
+  {word:"hesitate",pos:"verb",def:"to pause before doing something because you're unsure",ex:"Don't hesitate — jump in and try your best!",fact:"From Latin 'haesitare' = to stick fast. Imagine being stuck, unable to move forward.",choices:["to rush forward quickly","to laugh loudly","to pause because you're unsure","to shout clearly"],fill:"She didn't _____ when asked if she wanted to try the new sport.",fillBlanked:"hesitate"},
+  {word:"illuminate",pos:"verb",def:"to light up; to make something bright and clear",ex:"The bright lamp illuminated the entire dark room.",fact:"From Latin 'lumen' = light. Luminous, illuminate, and luminary all share this root!",choices:["to make dark","to destroy completely","to move sideways","to light up something"],fill:"The full moon helped _____ the path through the forest.",fillBlanked:"illuminate"},
+  {word:"journey",pos:"noun",def:"a long trip or travel from one place to another",ex:"The epic journey across the ocean took three weeks.",fact:"From Old French 'jornee' = a day's travel. One day of walking = one 'journey'!",choices:["a short nap","a type of food","a long trip or travel","a kind of music"],fill:"The _____ to the top of the mountain was difficult but rewarding.",fillBlanked:"journey"},
+  {word:"luminous",pos:"adjective",def:"giving off light; brightly glowing",ex:"The luminous moon lit the path through the dark woods.",fact:"Same root as 'illuminate' — Latin 'lumen' = light. Fireflies are luminous!",choices:["completely dark","making loud sounds","very rough","giving off light; glowing"],fill:"The _____ stars helped the sailors navigate at night.",fillBlanked:"luminous"},
+  {word:"magnificent",pos:"adjective",def:"impressively beautiful or amazing; grand",ex:"The magnificent castle gleamed in the golden sunset.",fact:"From Latin 'magnificus' = great + 'facere' = to make. Something truly well-made!",choices:["plain and boring","impressively beautiful and grand","extremely tiny","very quiet"],fill:"The _____ waterfall roared as it crashed into the pool below.",fillBlanked:"magnificent"},
+  {word:"navigate",pos:"verb",def:"to find a path or route; to steer a course",ex:"Ancient sailors used stars to navigate the vast ocean.",fact:"From Latin 'navis' = ship + 'agere' = to drive. Astronaut means 'star sailor'!",choices:["to build a structure","to cook a meal","to find a path or route","to fall asleep"],fill:"The explorer used a compass to _____ through the thick jungle.",fillBlanked:"navigate"},
+  {word:"observe",pos:"verb",def:"to watch carefully and pay close attention",ex:"Scientists observe animals in the wild to learn about them.",fact:"From Latin 'observare' = to watch over. An observatory is a place to observe stars!",choices:["to ignore completely","to watch carefully and pay attention","to run very fast","to make a loud sound"],fill:"She stopped to _____ the butterfly as it landed on the flower.",fillBlanked:"observe"},
+  {word:"persevere",pos:"verb",def:"to keep trying despite difficulty or setbacks",ex:"She persevered through the hardest math problems and finally got them right.",fact:"From Latin 'per' (through) + 'severus' (strict). Push through the tough parts!",choices:["to give up easily","to move very quickly","to keep trying despite difficulty","to sleep deeply"],fill:"Even when it was hard, he chose to _____ and finish the race.",fillBlanked:"persevere"},
+  {word:"quizzical",pos:"adjective",def:"showing curiosity or gentle confusion; puzzled",ex:"She gave a quizzical look at the strange math problem.",fact:"Related to 'quiz' — asking questions! A quizzical expression asks without words.",choices:["very angry","completely bored","showing curiosity or puzzlement","extremely loud"],fill:"The puppy had a _____ expression when it heard the strange noise.",fillBlanked:"quizzical"},
+  {word:"remarkable",pos:"adjective",def:"worthy of attention; extraordinary; very impressive",ex:"It was a remarkable discovery that amazed all the scientists.",fact:"'Re-mark' = to mark again and again! Something so good it keeps getting noticed.",choices:["completely ordinary","extremely small","worthy of attention; extraordinary","very old"],fill:"The student's artwork was so _____ that it won first place.",fillBlanked:"remarkable"},
+  {word:"serene",pos:"adjective",def:"calm, peaceful, and undisturbed",ex:"The serene lake reflected the clouds like a perfect mirror.",fact:"From Latin 'serenus' = clear, cloudless sky. Picture a perfectly calm day!",choices:["loud and chaotic","very fast","extremely cold","calm and peaceful"],fill:"After the storm, the sea became _____ and glassy.",fillBlanked:"serene"},
+  {word:"tenacious",pos:"adjective",def:"refusing to give up; holding on firmly",ex:"The tenacious young climber reached the summit after hours of effort.",fact:"From Latin 'tenax' = holding fast. Same root as 'tenant' — someone who holds property!",choices:["easily distracted","very colorful","refusing to give up; holding on","extremely quiet"],fill:"The _____ athlete trained every day for two years to make the team.",fillBlanked:"tenacious"},
+  {word:"venture",pos:"verb",def:"to go somewhere or do something despite possible risk",ex:"They decided to venture deep into the mysterious cave.",fact:"Related to 'adventure' — ad + venture = going TO the challenge!",choices:["to stay safely home","to go despite possible risk","to eat a large meal","to fall asleep quickly"],fill:"She decided to _____ out into the forest to explore.",fillBlanked:"venture"},
+];
+
+const modes=['match','fill','use'];
+let questions=[];
+let currentQ=0;
+let score=0;
+let stars=0;
+let level=1;
+let answered=false;
+
+function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
+
+function buildQuestions(){
+  const words=shuffle(vocab).slice(0,15);
+  questions=words.map((w,i)=>{
+    const m=modes[i%3];
+    return{...w,mode:m};
+  });
+}
+
+function initGame(){
+  buildQuestions();
+  currentQ=0;score=0;stars=0;level=1;answered=false;
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('top-bar').style.display='flex';
+  document.getElementById('stars-row').style.display='flex';
+  document.getElementById('game-area').style.display='block';
+  updateStars();
+  showQuestion();
+}
+
+function updateStars(){
+  const row=document.getElementById('stars-row');
+  const starsInLevel=stars%5;
+  row.innerHTML='';
+  for(let i=0;i<5;i++){
+    const s=document.createElement('span');
+    s.className='star-ic';
+    s.textContent=i<starsInLevel?'⭐':'☆';
+    row.appendChild(s);
+  }
+}
+
+function showQuestion(){
+  answered=false;
+  const q=questions[currentQ];
+  document.getElementById('q-num').textContent=currentQ+1;
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('level-val').textContent=level;
+  document.getElementById('fb-msg').textContent='';
+  document.getElementById('funfact-box').style.display='none';
+  document.getElementById('next-btn').style.display='none';
+  document.getElementById('use-it-area').style.display='none';
+  document.getElementById('choices-area').style.display='flex';
+  document.getElementById('choices-area').innerHTML='';
+  document.getElementById('fill-sentence').style.display='none';
+  document.getElementById('word-ex').style.display='block';
+
+  if(q.mode==='match'){
+    document.getElementById('mode-badge').textContent='🎯 Mode: Match It — Pick the correct definition';
+    document.getElementById('main-word').textContent=q.word.toUpperCase();
+    document.getElementById('word-pos').textContent=q.pos;
+    document.getElementById('word-def').textContent='';
+    document.getElementById('word-ex').textContent=q.ex;
+    buildChoices(q.choices, q.def);
+  } else if(q.mode==='fill'){
+    document.getElementById('mode-badge').textContent='📝 Mode: Fill It — Pick the missing word';
+    document.getElementById('main-word').textContent='Fill in the Blank';
+    document.getElementById('word-pos').textContent='';
+    document.getElementById('word-def').textContent=q.def;
+    document.getElementById('word-ex').textContent='';
+    document.getElementById('fill-sentence').style.display='block';
+    document.getElementById('fill-sentence').innerHTML=q.fill.replace('_____',`<span class="blank">_____</span>`);
+    const fillChoices=[q.word,...shuffle(vocab.filter(v=>v.word!==q.word)).slice(0,3).map(v=>v.word)];
+    buildChoices(fillChoices.map(c=>({text:c,correct:c===q.word})), null, true);
+  } else {
+    document.getElementById('mode-badge').textContent='✍️ Mode: Use It — Write your own sentence!';
+    document.getElementById('main-word').textContent=q.word.toUpperCase();
+    document.getElementById('word-pos').textContent=q.pos;
+    document.getElementById('word-def').textContent=q.def;
+    document.getElementById('word-ex').textContent='Example: '+q.ex;
+    document.getElementById('choices-area').style.display='none';
+    document.getElementById('use-it-area').style.display='block';
+    document.getElementById('use-it-input').value='';
+    document.getElementById('use-it-prompt').textContent='Write your own sentence using "'+q.word+'":';
+  }
+}
+
+function buildChoices(choices, correctDef, isFill=false){
+  const area=document.getElementById('choices-area');
+  area.innerHTML='';
+  let opts;
+  if(isFill){
+    opts=shuffle(choices);
+  } else {
+    opts=shuffle(choices);
+  }
+  opts.forEach(opt=>{
+    const btn=document.createElement('button');
+    btn.className='choice-btn';
+    const text=isFill?(opt.text||opt):(opt);
+    btn.textContent=text;
+    btn.addEventListener('click',()=>{
+      if(answered)return;
+      const isCorrect=isFill?(text===questions[currentQ].word):(text===correctDef);
+      onAnswer(isCorrect, btn);
+    });
+    area.appendChild(btn);
+  });
+}
+
+function onAnswer(isCorrect, btn){
+  answered=true;
+  const q=questions[currentQ];
+  if(isCorrect){
+    playCorrect();
+    btn.classList.add('flash-correct');
+    score+=100;stars++;
+    document.getElementById('fb-msg').innerHTML='<span style="color:#66ff66">✅ Excellent! +100 points!</span>';
+    if(stars%5===0){
+      level++;
+      document.getElementById('level-val').textContent=level;
+      playLevelUp();
+      showLevelUp();
+    }
+  } else {
+    playWrong();
+    btn.classList.add('flash-wrong');
+    document.querySelectorAll('.choice-btn').forEach(b=>{
+      const isCorr=q.mode==='fill'?b.textContent===q.word:b.textContent===q.def;
+      if(isCorr)b.classList.add('flash-correct');
+    });
+    document.getElementById('fb-msg').innerHTML='<span style="color:#ff6666">❌ Not quite — the correct answer is highlighted!</span>';
+  }
+  updateStars();
+  showFunFact(q);
+}
+
+function showLevelUp(){
+  const el=document.createElement('div');
+  el.className='level-up-msg';
+  el.textContent='⭐ LEVEL UP! ⭐';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1900);
+}
+
+function showFunFact(q){
+  document.getElementById('funfact-box').style.display='block';
+  document.getElementById('funfact-text').textContent=q.fact||('The word "'+q.word+'" is a '+q.pos+'. '+q.def);
+  const nb=document.getElementById('next-btn');
+  nb.style.display='block';
+  nb.textContent=currentQ<14?'Next Word →':'See Results 🏆';
+}
+
+document.getElementById('use-it-done').addEventListener('click',()=>{
+  if(answered)return;
+  const input=document.getElementById('use-it-input').value.trim();
+  if(!input){document.getElementById('fb-msg').textContent='Please write a sentence first!';return;}
+  answered=true;
+  playCorrect();
+  score+=100;stars++;
+  updateStars();
+  if(stars%5===0){level++;document.getElementById('level-val').textContent=level;playLevelUp();showLevelUp();}
+  document.getElementById('fb-msg').innerHTML='<span style="color:#66ff66">✅ Great sentence! +100 points!</span>';
+  document.getElementById('use-it-done').disabled=true;
+  showFunFact(questions[currentQ]);
+});
+
+document.getElementById('next-btn').addEventListener('click',()=>{
+  currentQ++;
+  document.getElementById('score-val').textContent=score;
+  if(currentQ>=15)endGame();else showQuestion();
+});
+
+function endGame(){
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('top-bar').style.display='none';
+  document.getElementById('stars-row').style.display='none';
+  const pct=Math.round((score/1500)*100);
+  let badge='😊';
+  if(pct>=90)badge='🧙‍♂️';else if(pct>=75)badge='⭐';else if(pct>=60)badge='📚';
+  document.getElementById('end-badge').textContent=badge;
+  document.getElementById('end-score').innerHTML=`Score: <strong style="color:#ffff00">${score}</strong>/1500<br>Stars earned: ${'⭐'.repeat(Math.min(stars,15))}<br><small style="color:#ff9999">${pct>=90?'Word Wizard Master!':pct>=75?'Vocabulary Champion!':pct>=60?'Word Learner!':'Keep Practicing!'}</small>`;
+  document.getElementById('end-screen').style.display='block';
+  const saved=localStorage.getItem(HS_KEY)||0;
+  if(score>saved)localStorage.setItem(HS_KEY,score);
+  const name=localStorage.getItem('visitorName');
+  if(name)document.getElementById('lb-name').value=name;
+  loadLeaderboard();
+}
+
+function loadLeaderboard(){
+  db.ref('leaderboard/wordwizard').orderByChild('score').limitToLast(10).once('value',snap=>{
+    const entries=[];
+    snap.forEach(c=>entries.push(c.val()));
+    entries.sort((a,b)=>b.score-a.score);
+    const list=document.getElementById('lb-list');
+    if(!entries.length){list.innerHTML='<p style="color:#ff9999;text-align:center">No scores yet!</p>';return;}
+    list.innerHTML='<strong style="color:#ffff00">Top Scores</strong><br>'+entries.map((e,i)=>`<div class="lb-entry"><span>#${i+1} ${e.name}</span><span style="color:#ffff00">${e.score}</span></div>`).join('');
+  });
+}
+
+document.getElementById('start-btn').addEventListener('click',initGame);
+document.getElementById('play-again-btn').addEventListener('click',initGame);
+document.getElementById('lb-submit-btn').addEventListener('click',()=>{
+  const name=document.getElementById('lb-name').value.trim()||'Player';
+  localStorage.setItem('visitorName',name);
+  db.ref('leaderboard/wordwizard/'+Date.now()).set({name,score,date:new Date().toLocaleDateString()});
+  document.getElementById('lb-submit-btn').textContent='Submitted! ✅';
+  document.getElementById('lb-submit-btn').disabled=true;
+  setTimeout(loadLeaderboard,800);
+});
+</script>
+</body>
+</html>

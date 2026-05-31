@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fraction Fun - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow-x: hidden; }
+    h1 { font-size: 26px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 28px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    #game-screen { max-width: 480px; width: 100%; padding: 12px; display: none; flex-direction: column; align-items: center; gap: 10px; }
+    #end-screen { display: none; }
+    .diff-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .diff-btn { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 8px; padding: 8px 16px; font-size: 14px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+    .diff-btn.selected { background: #cc0000; color: yellow; border-color: yellow; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 15px; font-weight: bold; color: #ffcc00; }
+    #q-timer-wrap { width: 100%; height: 8px; background: #3a0000; border-radius: 4px; overflow: hidden; }
+    #q-timer-bar { height: 100%; background: #ff9900; border-radius: 4px; transition: width 0.2s linear, background 0.5s; }
+    #question-label { color: #ffcccc; font-size: 16px; text-align: center; min-height: 22px; }
+    #canvases-row { display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap; }
+    #choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 380px; }
+    .choice-btn { background: darkred; border: 2px solid #ff6666; color: white; font-size: 20px; font-weight: bold; padding: 14px 10px; border-radius: 10px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; text-align: center; }
+    .choice-btn:active { filter: brightness(1.4); }
+    .choice-btn.correct { background: #004400; border-color: #00ff88; color: #00ff88; }
+    .choice-btn.wrong { background: #440000; border-color: #ff4444; color: #ff4444; }
+    #explanation { font-size: 15px; color: #ffaa44; text-align: center; min-height: 40px; padding: 4px 8px; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 5px 0; }
+    .stat-label { color: #ffcccc; } .stat-val { color: yellow; font-weight: bold; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 150px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    #compare-label { color: #ffcccc; font-size: 15px; text-align: center; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<!-- START -->
+<div id="start-screen">
+  <h1>🍕 Fraction Fun</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:14px;">Identify fractions from pizza slices and compare them!</p>
+  <div class="diff-row">
+    <button class="diff-btn selected" onclick="selectDiff(this,'easy')">Easy</button>
+    <button class="diff-btn" onclick="selectDiff(this,'medium')">Medium</button>
+    <button class="diff-btn" onclick="selectDiff(this,'hard')">Hard</button>
+  </div>
+  <p id="diff-desc" style="color:#ffaa88;font-size:13px;text-align:center;">Halves, thirds &amp; quarters</p>
+  <button class="btn" onclick="startGame()">▶ Start Game</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;">🏆 Top Scores</p>
+  <div id="lb-list"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+  <div id="hud">
+    <span>⭐ <span id="score-display">0</span></span>
+    <span id="q-counter">Q 1/20</span>
+    <span>⏱ <span id="q-time-display">10</span>s</span>
+  </div>
+  <div id="q-timer-wrap"><div id="q-timer-bar" style="width:100%"></div></div>
+  <div id="question-label">What fraction is shown?</div>
+  <div id="canvases-row">
+    <canvas id="pie1" width="130" height="130"></canvas>
+    <div id="compare-label" style="display:none;font-size:22px;font-weight:bold;color:yellow;">vs</div>
+    <canvas id="pie2" width="130" height="130" style="display:none"></canvas>
+  </div>
+  <div id="choice-grid"></div>
+  <div id="explanation"></div>
+</div>
+
+<!-- END -->
+<div id="end-screen">
+  <h1>🎉 Well Done!</h1>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="final-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Correct Answers</span><span class="stat-val" id="final-correct">0/20</span></div>
+  <div class="stat-row"><span class="stat-label">High Score</span><span class="stat-val" id="high-score">0</span></div>
+  <button class="btn" onclick="restartGame()">🔄 Play Again</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;">🏆 Top Scores</p>
+  <div id="lb-list-end"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<script>
+  const fbConfig = {apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
+  const fbApp = firebase.initializeApp(fbConfig, 'lb_fractionfun');
+  const db = firebase.database(fbApp);
+  const HS_KEY = 'hs_fractionfun';
+
+  let audioCtx = null;
+  function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+  function playBeep(freq,dur,type='sine',vol=0.3) {
+    try { const c=getAudio(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.type=type;o.frequency.value=freq; g.gain.setValueAtTime(vol,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur); o.start();o.stop(c.currentTime+dur); } catch(e){}
+  }
+  function playCorrect() { playBeep(523,0.08);setTimeout(()=>playBeep(659,0.08),80);setTimeout(()=>playBeep(784,0.12),160); }
+  function playWrong() { playBeep(200,0.2,'sawtooth',0.2); }
+
+  let diff='easy', score=0, qNum=0, correctCount=0, qTimer=null, qTimeLeft=10, answeredThisQ=false, gameActive=false;
+  const TOTAL_Q = 20;
+  const Q_TIME = 10;
+
+  // Fraction sets by difficulty
+  const fracSets = {
+    easy: [{n:1,d:2},{n:1,d:3},{n:2,d:3},{n:1,d:4},{n:2,d:4},{n:3,d:4}],
+    medium: [{n:1,d:2},{n:1,d:3},{n:2,d:3},{n:1,d:4},{n:3,d:4},{n:1,d:5},{n:2,d:5},{n:3,d:5},{n:4,d:5},{n:1,d:6},{n:5,d:6},{n:1,d:8},{n:3,d:8},{n:5,d:8},{n:7,d:8}],
+    hard: [{n:1,d:2},{n:1,d:3},{n:2,d:3},{n:1,d:4},{n:3,d:4},{n:1,d:5},{n:2,d:5},{n:3,d:5},{n:4,d:5},{n:1,d:6},{n:5,d:6},{n:1,d:8},{n:3,d:8},{n:5,d:8},{n:7,d:8},{n:2,d:6},{n:4,d:6},{n:2,d:8},{n:4,d:8},{n:6,d:8}]
+  };
+
+  const diffDescs = {easy:'Halves, thirds &amp; quarters', medium:'Up to eighths', hard:'Compare different fractions'};
+
+  function selectDiff(btn,d) {
+    diff=d;
+    document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('diff-desc').innerHTML=diffDescs[d];
+  }
+
+  let currentQ = null;
+
+  function drawPie(canvasId, n, d, highlighted=true, label=null) {
+    const cv = document.getElementById(canvasId);
+    const ctx = cv.getContext('2d');
+    const cx=65, cy=65, r=55;
+    ctx.clearRect(0,0,130,130);
+    // Draw slices
+    for (let i=0;i<d;i++) {
+      const start = -Math.PI/2 + (i/d)*2*Math.PI;
+      const end = start + (1/d)*2*Math.PI;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end); ctx.closePath();
+      if (highlighted && i < n) {
+        const t=i/n; ctx.fillStyle = `hsl(${40+t*30},100%,55%)`;
+      } else {
+        ctx.fillStyle = '#2a0000';
+      }
+      ctx.fill();
+      ctx.strokeStyle='#ff6666'; ctx.lineWidth=2; ctx.stroke();
+    }
+    // Outer ring
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.strokeStyle='#ff6666'; ctx.lineWidth=3; ctx.stroke();
+    if (label) {
+      ctx.fillStyle='white'; ctx.font='bold 16px Arial'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.fillText(label, cx, 128);
+    }
+  }
+
+  function shuffle(arr) { return arr.sort(()=>Math.random()-0.5); }
+
+  function generateQuestion() {
+    const fracs = fracSets[diff];
+    const isCompare = diff==='hard' && Math.random()>0.4;
+
+    if (isCompare) {
+      // Pick two different fractions
+      let idx1=Math.floor(Math.random()*fracs.length), idx2;
+      do { idx2=Math.floor(Math.random()*fracs.length); } while(idx2===idx1);
+      const f1=fracs[idx1], f2=fracs[idx2];
+      const v1=f1.n/f1.d, v2=f2.n/f2.d;
+      const bigger = v1>v2 ? 0 : 1;
+      return {type:'compare', f1, f2, bigger};
+    } else {
+      const idx=Math.floor(Math.random()*fracs.length);
+      const correct=fracs[idx];
+      // Generate 3 wrong options
+      let wrongSet=[...fracs].filter(f=>!(f.n===correct.n&&f.d===correct.d));
+      shuffle(wrongSet);
+      const wrongs=wrongSet.slice(0,3);
+      const choices=shuffle([correct,...wrongs]);
+      return {type:'identify', correct, choices};
+    }
+  }
+
+  function showQuestion() {
+    if (qNum>=TOTAL_Q) { endGame(); return; }
+    answeredThisQ=false;
+    document.getElementById('explanation').textContent='';
+    const grid=document.getElementById('choice-grid');
+    grid.innerHTML='';
+
+    currentQ=generateQuestion();
+    document.getElementById('q-counter').textContent=`Q ${qNum+1}/${TOTAL_Q}`;
+
+    if (currentQ.type==='identify') {
+      document.getElementById('question-label').textContent='What fraction is shown? 🍕';
+      document.getElementById('compare-label').style.display='none';
+      document.getElementById('pie2').style.display='none';
+      drawPie('pie1', currentQ.correct.n, currentQ.correct.d);
+      currentQ.choices.forEach(f => {
+        const btn=document.createElement('button');
+        btn.className='choice-btn';
+        btn.innerHTML=`<sup>${f.n}</sup>/<sub>${f.d}</sub>`;
+        btn.onclick=()=>answerIdentify(btn, f, currentQ.correct);
+        grid.appendChild(btn);
+      });
+    } else {
+      document.getElementById('question-label').textContent='Which pizza is BIGGER? 🍕';
+      document.getElementById('compare-label').style.display='block';
+      document.getElementById('pie2').style.display='block';
+      drawPie('pie1', currentQ.f1.n, currentQ.f1.d, true, `${currentQ.f1.n}/${currentQ.f1.d}`);
+      drawPie('pie2', currentQ.f2.n, currentQ.f2.d, true, `${currentQ.f2.n}/${currentQ.f2.d}`);
+      ['Left pizza','Right pizza'].forEach((label,i) => {
+        const btn=document.createElement('button');
+        btn.className='choice-btn';
+        btn.textContent=label;
+        btn.style.fontSize='16px';
+        btn.onclick=()=>answerCompare(btn, i, currentQ.bigger);
+        grid.appendChild(btn);
+      });
+    }
+
+    startQTimer();
+  }
+
+  function answerIdentify(btn, chosen, correct) {
+    if (answeredThisQ) return;
+    answeredThisQ=true;
+    stopQTimer();
+    const isCorrect = chosen.n===correct.n && chosen.d===correct.d;
+    const allBtns=document.querySelectorAll('.choice-btn');
+    allBtns.forEach(b=>{
+      const n=parseInt(b.querySelector('sup')?.textContent||'0');
+      const d=parseInt(b.querySelector('sub')?.textContent||'0');
+      if(n===correct.n&&d===correct.d) b.classList.add('correct');
+    });
+    if(isCorrect) {
+      btn.classList.add('correct');
+      const speedBonus=Math.round(qTimeLeft*5);
+      score+=100+speedBonus;
+      correctCount++;
+      playCorrect();
+      document.getElementById('explanation').textContent=`✓ Correct! ${correct.n}/${correct.d} means ${correct.n} out of ${correct.d} equal parts! (+${100+speedBonus} pts)`;
+    } else {
+      btn.classList.add('wrong');
+      playWrong();
+      document.getElementById('explanation').textContent=`✗ The answer is ${correct.n}/${correct.d} — ${correct.n} of ${correct.d} equal slices.`;
+    }
+    document.getElementById('score-display').textContent=score;
+    setTimeout(()=>{qNum++;showQuestion();},1400);
+  }
+
+  function answerCompare(btn, chosen, correct) {
+    if(answeredThisQ) return;
+    answeredThisQ=true;
+    stopQTimer();
+    const allBtns=document.querySelectorAll('.choice-btn');
+    allBtns[correct].classList.add('correct');
+    if(chosen===correct){
+      btn.classList.add('correct');
+      const speedBonus=Math.round(qTimeLeft*5);
+      score+=100+speedBonus;
+      correctCount++;
+      playCorrect();
+      const bigFrac=correct===0?currentQ.f1:currentQ.f2;
+      document.getElementById('explanation').textContent=`✓ Correct! ${bigFrac.n}/${bigFrac.d} is the bigger fraction! (+${100+speedBonus} pts)`;
+    } else {
+      btn.classList.add('wrong');
+      playWrong();
+      const bigFrac=correct===0?currentQ.f1:currentQ.f2;
+      document.getElementById('explanation').textContent=`✗ ${bigFrac.n}/${bigFrac.d} is actually larger!`;
+    }
+    document.getElementById('score-display').textContent=score;
+    setTimeout(()=>{qNum++;showQuestion();},1400);
+  }
+
+  function startQTimer() {
+    qTimeLeft=Q_TIME;
+    document.getElementById('q-time-display').textContent=qTimeLeft;
+    document.getElementById('q-timer-bar').style.width='100%';
+    document.getElementById('q-timer-bar').style.background='#ff9900';
+    qTimer=setInterval(()=>{
+      qTimeLeft--;
+      document.getElementById('q-time-display').textContent=qTimeLeft;
+      const pct=(qTimeLeft/Q_TIME)*100;
+      document.getElementById('q-timer-bar').style.width=pct+'%';
+      if(qTimeLeft<=3) document.getElementById('q-timer-bar').style.background='#ff0000';
+      if(qTimeLeft<=0) {
+        stopQTimer();
+        if(!answeredThisQ){
+          answeredThisQ=true;
+          playWrong();
+          document.getElementById('explanation').textContent="⏱ Time's up!";
+          setTimeout(()=>{qNum++;showQuestion();},1000);
+        }
+      }
+    },1000);
+  }
+  function stopQTimer() { clearInterval(qTimer); }
+
+  function startGame() {
+    getAudio();
+    score=0;qNum=0;correctCount=0;gameActive=true;
+    document.getElementById('start-screen').style.display='none';
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('game-screen').style.display='flex';
+    document.getElementById('score-display').textContent='0';
+    showQuestion();
+  }
+
+  function endGame() {
+    gameActive=false;
+    document.getElementById('game-screen').style.display='none';
+    document.getElementById('end-screen').style.display='flex';
+    document.getElementById('final-score').textContent=score;
+    document.getElementById('final-correct').textContent=`${correctCount}/${TOTAL_Q}`;
+    const hs=Math.max(score,parseInt(localStorage.getItem(HS_KEY)||'0'));
+    localStorage.setItem(HS_KEY,hs);
+    document.getElementById('high-score').textContent=hs;
+    if(score>0){
+      const playerName=localStorage.getItem('visitorName')||'Player';
+      db.ref('leaderboard/fractionfun/'+Date.now()).set({name:playerName,score,date:new Date().toLocaleDateString()});
+    }
+    loadLeaderboard('lb-list-end');
+  }
+
+  function restartGame() {
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('start-screen').style.display='flex';
+    loadLeaderboard('lb-list');
+  }
+
+  function loadLeaderboard(targetId) {
+    db.ref('leaderboard/fractionfun').orderByChild('score').limitToLast(10).once('value').then(snap=>{
+      const entries=[];
+      snap.forEach(c=>entries.push(c.val()));
+      entries.sort((a,b)=>b.score-a.score);
+      const el=document.getElementById(targetId);
+      if(!entries.length){el.innerHTML='<p style="color:#ff9999;font-size:13px;">No scores yet!</p>';return;}
+      el.innerHTML=entries.map((e,i)=>`<div class="lb-row"><span>${i+1}. ${e.name}</span><span style="color:yellow">${e.score}</span><span style="color:#ff9999;font-size:11px">${e.date||''}</span></div>`).join('');
+    }).catch(()=>{});
+  }
+
+  loadLeaderboard('lb-list');
+</script>
+</body>
+</html>

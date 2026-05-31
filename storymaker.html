@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Story Maker - Ender's Game World</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a0000;color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:50px 10px 30px}
+  h1{color:#ffff00;font-size:2em;text-shadow:0 0 10px #ff0;margin-bottom:4px;text-align:center}
+  .subtitle{color:#ff9999;font-size:0.9em;margin-bottom:15px}
+  #progress-bar{width:100%;max-width:540px;height:10px;background:#3a0000;border-radius:5px;margin-bottom:16px;overflow:hidden;display:none}
+  #progress-fill{height:100%;background:linear-gradient(90deg,#cc0066,#ffff00);border-radius:5px;transition:width 0.4s}
+  #step-counter{color:#ff9999;text-align:center;font-size:0.85em;margin-bottom:12px;display:none}
+
+  /* Start screen */
+  #start-screen{width:100%;max-width:540px;text-align:center}
+  #start-screen p{color:#ffcc66;margin-bottom:14px;line-height:1.6}
+  .template-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+  .template-card{background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:14px 10px;cursor:pointer;transition:all 0.2s;text-align:center}
+  .template-card:hover{background:#3a0000;border-color:#ffff00;transform:scale(1.05)}
+  .template-card.selected{background:#440000;border-color:#ffff00;box-shadow:0 0 12px #ff0}
+  .template-icon{font-size:2em;margin-bottom:6px}
+  .template-title{color:#ffcc66;font-size:0.9em;font-weight:bold}
+  #random-btn,#start-story-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 26px;border-radius:10px;font-size:1.05em;cursor:pointer;font-family:inherit;margin:5px}
+  #random-btn:hover,#start-story-btn:hover{background:#660000;border-color:#ffff00}
+
+  /* Input phase */
+  #input-phase{display:none;width:100%;max-width:540px}
+  #pos-card{background:linear-gradient(135deg,#2a0000,#1a0000);border:2px solid #ff6666;border-radius:16px;padding:20px;margin-bottom:15px}
+  #pos-label{font-size:1.4em;font-weight:bold;margin-bottom:6px}
+  #pos-def{color:#aaa;font-size:0.85em;margin-bottom:4px;font-style:italic}
+  #pos-example{color:#ff9999;font-size:0.85em;margin-bottom:12px}
+  #pos-input{width:100%;background:#1a0000;border:2px solid #ff6666;color:#fff;padding:12px;border-radius:8px;font-size:1.1em;font-family:inherit;outline:none}
+  #pos-input:focus{border-color:#ffff00}
+  #next-word-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 28px;border-radius:10px;font-size:1.05em;cursor:pointer;margin-top:12px;display:block;margin-left:auto;margin-right:auto;font-family:inherit}
+  #next-word-btn:hover{background:#660000;border-color:#ffff00}
+  #input-error{color:#ff6666;font-size:0.85em;text-align:center;min-height:1.2em;margin-top:5px}
+
+  /* Story reveal */
+  #story-phase{display:none;width:100%;max-width:580px}
+  #story-title-row{text-align:center;margin-bottom:14px}
+  #story-title-row h2{color:#ffff00;font-size:1.6em}
+  #story-title-row .story-icon{font-size:2em}
+  #story-box{background:#2a0000;border:2px solid #ff6666;border-radius:16px;padding:22px;font-size:1.1em;line-height:2.1em;margin-bottom:16px;animation:reveal 0.6s ease}
+  @keyframes reveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .word-highlight{background:#2a2000;border:1px solid #ffff00;border-radius:5px;color:#ffff00;padding:1px 6px;font-weight:bold;display:inline-block}
+  #pos-facts{background:#1a1a00;border:2px solid #ffff00;border-radius:12px;padding:16px;margin-bottom:16px}
+  #pos-facts h3{color:#ffff00;margin-bottom:10px;font-size:1em}
+  .fact-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .fact-chip{background:#2a2000;border:1px solid #ffff00;border-radius:20px;padding:5px 12px;font-size:0.85em;color:#ffcc88}
+  #action-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:16px}
+  #copy-btn,#play-again-btn,#new-template-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:11px 22px;border-radius:10px;font-size:1em;cursor:pointer;font-family:inherit}
+  #copy-btn:hover,#play-again-btn:hover,#new-template-btn:hover{background:#660000;border-color:#ffff00}
+  #copy-msg{color:#66ff66;text-align:center;min-height:1.2em;font-size:0.9em}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<h1>✍️ Story Maker</h1>
+<p class="subtitle">Create your own silly story!</p>
+
+<div id="start-screen">
+  <p>Pick a story type, then fill in words to create a <strong style="color:#ffff00">hilarious tale!</strong><br>
+  You'll be surprised by what you write! 😄</p>
+  <div class="template-grid" id="template-grid"></div>
+  <div>
+    <button id="random-btn">🎲 Random Story</button>
+    <button id="start-story-btn">▶ Start Writing!</button>
+  </div>
+</div>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+<div id="step-counter"></div>
+
+<div id="input-phase">
+  <div id="pos-card">
+    <div id="pos-label"></div>
+    <div id="pos-def"></div>
+    <div id="pos-example"></div>
+    <input type="text" id="pos-input" placeholder="Type your word here..." maxlength="30" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div id="input-error"></div>
+    <button id="next-word-btn">Next ➜</button>
+  </div>
+</div>
+
+<div id="story-phase">
+  <div id="story-title-row">
+    <div class="story-icon" id="story-icon"></div>
+    <h2 id="story-heading"></h2>
+  </div>
+  <div id="story-box"></div>
+  <div id="pos-facts">
+    <h3>📚 Parts of Speech — What you used!</h3>
+    <div class="fact-row">
+      <div class="fact-chip">📦 <strong>NOUN</strong> = person, place, or thing</div>
+      <div class="fact-chip">🏃 <strong>VERB</strong> = action or doing word</div>
+    </div>
+    <div class="fact-row">
+      <div class="fact-chip">🎨 <strong>ADJECTIVE</strong> = describing word</div>
+      <div class="fact-chip">💨 <strong>ADVERB</strong> = describes how an action happens</div>
+    </div>
+    <div class="fact-row">
+      <div class="fact-chip">📍 <strong>PLACE</strong> = location (a type of noun!)</div>
+      <div class="fact-chip">👤 <strong>NAME</strong> = a proper noun — always capitalized!</div>
+    </div>
+  </div>
+  <div id="action-row">
+    <button id="copy-btn">📋 Copy Story</button>
+    <button id="play-again-btn">🔄 New Words, Same Story</button>
+    <button id="new-template-btn">📖 New Story Type</button>
+  </div>
+  <div id="copy-msg"></div>
+</div>
+
+<script>
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function beep(freq,dur,type='sine',vol=0.3){try{const a=getAudio();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.start();o.stop(a.currentTime+dur);}catch(e){}}
+function playTap(){beep(440,0.08);}
+function playReveal(){[262,330,392,523].forEach((f,i)=>setTimeout(()=>beep(f,0.15),i*80));}
+
+const posInfo={
+  NOUN:{color:'#ff9966',def:'A person, place, or thing',example:'Examples: dog, school, mountain, happiness'},
+  'PLURAL NOUN':{color:'#ff9966',def:'More than one person, place, or thing',example:'Examples: dogs, schools, mountains, cookies'},
+  ADJECTIVE:{color:'#66ccff',def:'A word that describes a noun',example:'Examples: giant, purple, slimy, sparkly'},
+  VERB:{color:'#66ff66',def:'An action word — something you do',example:'Examples: run, jump, explode, wiggle'},
+  'VERB (past tense)':{color:'#66ff66',def:'An action word — something that already happened',example:'Examples: ran, jumped, exploded, wiggled'},
+  'VERB (-ing form)':{color:'#66ff66',def:'An action word with -ing (happening right now)',example:'Examples: running, jumping, exploding, wiggling'},
+  ADVERB:{color:'#ffcc00',def:'Describes HOW something happens',example:'Examples: quickly, loudly, sneakily, brilliantly'},
+  PLACE:{color:'#cc99ff',def:'A location — where something happens',example:'Examples: the moon, a swamp, a taco stand, Mount Doom'},
+  NAME:{color:'#ff66cc',def:'A person\'s name — a proper noun (always capitalized!)',example:'Examples: Luna, Captain Biscuit, Professor Noodle'},
+  NUMBER:{color:'#ffff66',def:'Any number you want!',example:'Examples: 7, 42, 1000, 3.14'},
+  EXCLAMATION:{color:'#ff6666',def:'An excited word or sound!',example:'Examples: Wow!, Yikes!, Zoinks!, Holy smokes!'},
+};
+
+const templates=[
+  {
+    id:'adventure',icon:'⚔️',title:'The Quest for the Lost ___',
+    blanks:[
+      {label:'NOUN',hint:'What are they searching for?'},
+      {label:'NAME',hint:'Who is our brave hero?'},
+      {label:'ADJECTIVE',hint:'What kind of hero are they?'},
+      {label:'PLACE',hint:'Where does the adventure take place?'},
+      {label:'PLURAL NOUN',hint:'What dangers block the path?'},
+      {label:'VERB (-ing form)',hint:'What is our hero doing?'},
+      {label:'ADJECTIVE',hint:'Describe the villain!'},
+      {label:'NOUN',hint:'The hero\'s secret weapon!'},
+      {label:'ADVERB',hint:'How does the hero defeat the villain?'},
+      {label:'EXCLAMATION',hint:'What does the hero shout in triumph?'},
+    ],
+    story:(w)=>`Once upon a time, a ${w[2]} hero named ${w[1]} set out on a grand quest to find the legendary ${w[0]}. The journey led deep into ${w[3]}, where all kinds of terrifying ${w[4]} lurked in the shadows. There was ${w[1]}, ${w[5]} bravely through the dangers, armed with nothing but a ${w[7]}. Suddenly, a ${w[6]} villain appeared and blocked the path! Without hesitating, ${w[1]} raised the ${w[7]} and ${w[8]} defeated the villain once and for all. "${w[9]}!" shouted ${w[1]}, holding the ${w[0]} high. And from that day on, the legendary ${w[0]} was kept safe, and ${w[1]} became the greatest hero ${w[3]} had ever known.`,
+  },
+  {
+    id:'space',icon:'🚀',title:'Alien Encounter!',
+    blanks:[
+      {label:'NAME',hint:'What is the astronaut\'s name?'},
+      {label:'ADJECTIVE',hint:'Describe the alien!'},
+      {label:'PLURAL NOUN',hint:'What do aliens have instead of eyes?'},
+      {label:'NOUN',hint:'What strange thing does the alien offer?'},
+      {label:'VERB (-ing form)',hint:'What is the alien doing?'},
+      {label:'PLACE',hint:'Where in space are they?'},
+      {label:'ADVERB',hint:'How does the alien speak?'},
+      {label:'NOUN',hint:'A body part!'},
+      {label:'ADJECTIVE',hint:'Describe the spaceship!'},
+      {label:'NUMBER',hint:'Pick a number!'},
+    ],
+    story:(w)=>`Astronaut ${w[0]} was cruising through ${w[5]} when suddenly, a ${w[8]} spaceship appeared! Out floated a ${w[1]} alien with ${w[2]} instead of eyes, ${w[4]} and waving its ${w[7]}. "${w[6]}, I come in peace," the alien said ${w[6]}, handing ${w[0]} a glowing ${w[3]}. "On our planet, we greet friends with ${w[3]}," it explained. ${w[0]} stared for ${w[9]} whole seconds before finally accepting. The alien beamed — all ${w[1]} ${w[2]} lighting up at once! That day, ${w[0]} made the most unusual best friend in the entire galaxy, ${w[1]} alien and all.`,
+  },
+  {
+    id:'animal',icon:'🐾',title:'My Pet\'s Big Mistake',
+    blanks:[
+      {label:'NOUN',hint:'What kind of pet? (any animal!)'},
+      {label:'NAME',hint:'What is the pet\'s name?'},
+      {label:'ADJECTIVE',hint:'Describe your pet!'},
+      {label:'VERB (past tense)',hint:'What did the pet do first?'},
+      {label:'PLACE',hint:'Where in the house?'},
+      {label:'PLURAL NOUN',hint:'What did the pet knock over?'},
+      {label:'VERB (-ing form)',hint:'How was the pet moving?'},
+      {label:'ADJECTIVE',hint:'How did the mess look?'},
+      {label:'NOUN',hint:'What was the pet covered in?'},
+      {label:'ADVERB',hint:'How did the pet look at you?'},
+    ],
+    story:(w)=>`My ${w[2]} ${w[0]}, ${w[1]}, was supposed to be sleeping. Instead, I found ${w[1]} in the ${w[4]}, having completely ${w[3]} everything in sight. There were ${w[5]} scattered everywhere, a completely ${w[7]} mess from wall to wall, and ${w[1]} was ${w[6]} right through the middle of it all — covered head to paw in ${w[9]}. "${w[1]}!" I shouted. The ${w[0]} sat down, looked up at me ${w[9]}, and slowly wagged its tail as if to say: "What mess? I see no mess." I could NOT be angry. How do you stay mad at a face like that? (Answer: you cannot.)`,
+  },
+  {
+    id:'sports',icon:'🏆',title:'The Big Game',
+    blanks:[
+      {label:'NAME',hint:'The star player\'s name!'},
+      {label:'ADJECTIVE',hint:'Describe the player!'},
+      {label:'NOUN',hint:'What sport are they playing?'},
+      {label:'PLACE',hint:'Where is the game?'},
+      {label:'NUMBER',hint:'The score!'},
+      {label:'VERB (past tense)',hint:'What did the player do?'},
+      {label:'ADVERB',hint:'How did they do it?'},
+      {label:'ADJECTIVE',hint:'Describe the crowd!'},
+      {label:'NOUN',hint:'What trophy do they win?'},
+      {label:'EXCLAMATION',hint:'Crowd\'s reaction!'},
+    ],
+    story:(w)=>`The arena at ${w[3]} fell silent. It was the championship ${w[2]} match, and the score was tied ${w[4]} to ${w[4]}. Everyone looked to ${w[1]} superstar ${w[0]}. With ten seconds on the clock, ${w[0]} ${w[5]} so ${w[6]} that the ${w[7]} crowd couldn't believe their eyes. "${w[9]}!" the fans roared, leaping to their feet. The ${w[2]} sailed perfectly, and when the buzzer sounded, ${w[0]}'s team had won! Coach lifted ${w[0]} up and handed over the legendary ${w[8]} Trophy. ${w[0]} held it high and said, "This one's for everyone who believed in me!" It was the greatest ${w[2]} moment ${w[3]} had ever seen.`,
+  },
+  {
+    id:'food',icon:'🍳',title:'The Cooking Disaster',
+    blanks:[
+      {label:'NAME',hint:'The terrible chef\'s name!'},
+      {label:'NOUN',hint:'What are they trying to cook?'},
+      {label:'PLURAL NOUN',hint:'A weird ingredient!'},
+      {label:'NUMBER',hint:'How many cups of something?'},
+      {label:'ADJECTIVE',hint:'Describe the smell!'},
+      {label:'VERB (past tense)',hint:'What did the food do?'},
+      {label:'PLACE',hint:'Where did the mess spread?'},
+      {label:'ADJECTIVE',hint:'Describe the final dish!'},
+      {label:'ADVERB',hint:'How did they serve it?'},
+      {label:'EXCLAMATION',hint:'What did the dinner guest shout?'},
+    ],
+    story:(w)=>`${w[0]} had one job: make a simple ${w[1]} for dinner. Simple! Easy! What could go wrong? First, ${w[0]} added ${w[3]} cups of ${w[2]}, because the recipe "seemed unclear." The mixture immediately turned a ${w[7]} color and produced a ${w[4]} smell that drifted all the way to ${w[6]}. Then the whole thing ${w[5]} — loudly — covering everything in sight. Twenty minutes later, ${w[0]} ${w[8]} placed the ${w[7]} ${w[1]} on the table. The dinner guest took one look. One sniff. "${w[9]}!" they said. There was a very long pause. Then they picked up a fork and tried it anyway. "Actually," they said slowly, "this is amazing?" And that is how ${w[0]}'s Surprise ${w[1]} became the most famous dish in town.`,
+  },
+];
+
+let selectedTemplate=0;
+let currentBlankIdx=0;
+let collectedWords=[];
+
+function renderTemplates(){
+  const grid=document.getElementById('template-grid');
+  grid.innerHTML='';
+  templates.forEach((t,i)=>{
+    const card=document.createElement('div');
+    card.className='template-card'+(i===selectedTemplate?' selected':'');
+    card.innerHTML=`<div class="template-icon">${t.icon}</div><div class="template-title">${t.title.replace('___','...')}</div>`;
+    card.addEventListener('click',()=>{
+      playTap();
+      selectedTemplate=i;
+      document.querySelectorAll('.template-card').forEach((c,j)=>c.classList.toggle('selected',j===i));
+    });
+    grid.appendChild(card);
+  });
+}
+
+function startStory(){
+  playTap();
+  currentBlankIdx=0;
+  collectedWords=[];
+  const t=templates[selectedTemplate];
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('progress-bar').style.display='block';
+  document.getElementById('step-counter').style.display='block';
+  document.getElementById('input-phase').style.display='block';
+  document.getElementById('story-phase').style.display='none';
+  showBlank();
+}
+
+function showBlank(){
+  const t=templates[selectedTemplate];
+  const blank=t.blanks[currentBlankIdx];
+  const total=t.blanks.length;
+  document.getElementById('progress-fill').style.width=(((currentBlankIdx)/total)*100)+'%';
+  document.getElementById('step-counter').textContent=`Word ${currentBlankIdx+1} of ${total} — ${t.icon} ${t.title.replace('___','...')}`;
+  const info=posInfo[blank.label]||{color:'#ff9999',def:'Any word!',example:''};
+  document.getElementById('pos-label').innerHTML=`<span style="color:${info.color};font-size:1.1em">[${blank.label}]</span> — ${blank.hint}`;
+  document.getElementById('pos-def').textContent=info.def;
+  document.getElementById('pos-example').textContent=info.example;
+  document.getElementById('pos-input').value='';
+  document.getElementById('pos-input').placeholder=`Type a ${blank.label.toLowerCase()}...`;
+  document.getElementById('input-error').textContent='';
+  document.getElementById('next-word-btn').textContent=currentBlankIdx<total-1?'Next Word ➜':'Reveal Story! 🎉';
+  setTimeout(()=>document.getElementById('pos-input').focus(),200);
+}
+
+function nextWord(){
+  const val=document.getElementById('pos-input').value.trim();
+  if(!val){document.getElementById('input-error').textContent='Please enter a word first!';return;}
+  playTap();
+  collectedWords.push(val);
+  currentBlankIdx++;
+  const t=templates[selectedTemplate];
+  if(currentBlankIdx>=t.blanks.length){
+    revealStory();
+  } else {
+    showBlank();
+  }
+}
+
+function revealStory(){
+  playReveal();
+  document.getElementById('input-phase').style.display='none';
+  document.getElementById('progress-bar').style.display='none';
+  document.getElementById('step-counter').style.display='none';
+  const t=templates[selectedTemplate];
+  document.getElementById('story-icon').textContent=t.icon;
+  document.getElementById('story-heading').textContent='Your Story: '+t.title.replace('___',collectedWords[0]||'Something');
+
+  // Build story text with highlighted words
+  let storyText=t.story(collectedWords);
+  collectedWords.forEach(w=>{
+    if(!w)return;
+    const escaped=w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    storyText=storyText.replace(new RegExp(escaped,'g'),`<span class="word-highlight">${w}</span>`);
+  });
+  document.getElementById('story-box').innerHTML=storyText;
+  document.getElementById('story-phase').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+document.getElementById('pos-input').addEventListener('keydown',e=>{if(e.key==='Enter')nextWord();});
+document.getElementById('next-word-btn').addEventListener('click',nextWord);
+
+document.getElementById('copy-btn').addEventListener('click',()=>{
+  playTap();
+  const t=templates[selectedTemplate];
+  const plain=t.story(collectedWords);
+  navigator.clipboard.writeText('My Story Maker tale:\n\n'+plain+'\n\n— Made at Ender\'s Game World!').then(()=>{
+    document.getElementById('copy-msg').textContent='✅ Story copied to clipboard!';
+    setTimeout(()=>document.getElementById('copy-msg').textContent='',3000);
+  }).catch(()=>{
+    document.getElementById('copy-msg').textContent='Hmm, copy failed. Try selecting the text manually!';
+  });
+});
+
+document.getElementById('play-again-btn').addEventListener('click',()=>{
+  playTap();
+  document.getElementById('story-phase').style.display='none';
+  currentBlankIdx=0;
+  collectedWords=[];
+  document.getElementById('progress-bar').style.display='block';
+  document.getElementById('step-counter').style.display='block';
+  document.getElementById('input-phase').style.display='block';
+  showBlank();
+});
+
+document.getElementById('new-template-btn').addEventListener('click',()=>{
+  playTap();
+  document.getElementById('story-phase').style.display='none';
+  document.getElementById('start-screen').style.display='block';
+  renderTemplates();
+});
+
+document.getElementById('random-btn').addEventListener('click',()=>{
+  playTap();
+  selectedTemplate=Math.floor(Math.random()*templates.length);
+  document.querySelectorAll('.template-card').forEach((c,j)=>c.classList.toggle('selected',j===selectedTemplate));
+});
+
+document.getElementById('start-story-btn').addEventListener('click',startStory);
+
+renderTemplates();
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Times Tables Blitz - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
+    h1 { font-size: 24px; color: yellow; margin-bottom: 4px; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 24px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px; }
+    #game-screen { width: 100%; max-width: 680px; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 4px; }
+    #end-screen { display: none; }
+    .mode-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .mode-btn { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; text-align: center; }
+    .mode-btn.selected { background: #cc0000; color: yellow; border-color: yellow; }
+    #focus-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .table-sel { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 6px; padding: 6px 8px; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; min-width: 44px; text-align: center; }
+    .table-sel.selected { background: #cc0000; color: yellow; border-color: yellow; }
+    /* GAME HUD */
+    #progress-wrap { width: 100%; height: 10px; background: #3a0000; border-radius: 5px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #ff6600; border-radius: 5px; transition: width 0.3s; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 14px; font-weight: bold; color: #ffcc00; }
+    /* MAIN LAYOUT */
+    #main-layout { display: flex; gap: 10px; width: 100%; align-items: flex-start; }
+    #left-panel { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #right-panel { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; }
+    @media(max-width:520px){ #right-panel{display:none;} }
+    #problem { font-size: 48px; color: yellow; font-weight: bold; letter-spacing: 2px; text-align: center; min-height: 65px; display: flex; align-items: center; justify-content: center; }
+    #msg { font-size: 20px; text-align: center; min-height: 28px; font-weight: bold; }
+    #answer-row { display: flex; gap: 8px; align-items: center; width: 100%; max-width: 300px; }
+    #answer-input { background: #2a0000; border: 2px solid #ff6666; color: white; font-size: 28px; text-align: center; flex: 1; padding: 8px; border-radius: 8px; outline: none; width: 0; }
+    #answer-input:focus { border-color: yellow; }
+    #submit-btn { background: darkred; border: 2px solid #ff6666; color: white; font-size: 22px; border-radius: 8px; padding: 8px 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    /* Times table grid */
+    #tt-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 1px; font-size: 9px; }
+    .tt-cell { padding: 3px 1px; text-align: center; border-radius: 2px; line-height: 1.2; }
+    .tt-header { color: #ffcc44; font-weight: bold; background: #2a0000; }
+    .tt-body { color: #ff9999; background: #1f0000; }
+    .tt-highlight { background: #005500 !important; color: #88ff88 !important; font-weight: bold; }
+    .tt-recent { background: #004400 !important; color: #66ee66 !important; }
+    /* Color-coded difficulty */
+    .diff-easy { color: #88ff88; }
+    .diff-med { color: yellow; }
+    .diff-hard { color: #ff8888; }
+    /* End screen */
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 16px; border-bottom: 1px solid #3a0000; padding: 5px 0; }
+    .stat-label { color: #ffcccc; } .stat-val { color: yellow; font-weight: bold; }
+    #stars { font-size: 40px; text-align: center; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 140px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    @keyframes flash-correct { 0%,100%{background:#1a0000}50%{background:#003300} }
+    .flash-c { animation: flash-correct 0.25s ease; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<!-- START -->
+<div id="start-screen">
+  <h1>✖️ Times Tables Blitz</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:14px;">Master multiplication tables 1–12!</p>
+  <p style="color:#ffaa44;font-size:13px;font-weight:bold;">Game Mode:</p>
+  <div class="mode-row">
+    <button class="mode-btn selected" onclick="selectMode(this,'normal')">📝 Normal<br><small>30 questions</small></button>
+    <button class="mode-btn" onclick="selectMode(this,'practice')">🎯 Practice<br><small>One table</small></button>
+    <button class="mode-btn" onclick="selectMode(this,'speed')">⚡ Speed<br><small>60 seconds</small></button>
+  </div>
+  <div id="focus-row" style="display:none">
+    <span style="color:#ffcccc;font-size:14px;">Table:</span>
+  </div>
+  <p style="color:#aaffaa;font-size:12px;">
+    <span class="diff-easy">■ Tables 1–5: Easy</span> &nbsp;
+    <span class="diff-med">■ Tables 6–9: Medium</span> &nbsp;
+    <span class="diff-hard">■ Tables 10–12: Hard</span>
+  </p>
+  <button class="btn" onclick="startGame()">▶ Start</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;">🏆 Top Scores</p>
+  <div id="lb-list"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+  <div id="hud">
+    <span>⭐ <span id="score-display">0</span></span>
+    <span id="q-info">Q 1/30</span>
+    <span>⏱ <span id="time-display">90</span>s</span>
+  </div>
+  <div id="progress-wrap"><div id="progress-bar" style="width:0%"></div></div>
+  <div id="main-layout">
+    <div id="left-panel">
+      <div id="problem">? × ? = ?</div>
+      <div id="msg"></div>
+      <div id="answer-row">
+        <input id="answer-input" type="number" inputmode="numeric" placeholder="?" autocomplete="off">
+        <button id="submit-btn" onclick="submitAnswer()">✓</button>
+      </div>
+      <p style="color:#ff9999;font-size:12px;">Press Enter or tap ✓</p>
+    </div>
+    <div id="right-panel">
+      <p style="color:#ffaa44;font-size:11px;text-align:center;margin-bottom:2px;">Times Table Grid</p>
+      <div id="tt-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- END -->
+<div id="end-screen">
+  <h1>✖️ Round Complete!</h1>
+  <div id="stars">⭐</div>
+  <div class="stat-row"><span class="stat-label">Score</span><span class="stat-val" id="final-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Correct</span><span class="stat-val" id="final-correct">0</span></div>
+  <div class="stat-row"><span class="stat-label">Accuracy</span><span class="stat-val" id="final-acc">0%</span></div>
+  <div class="stat-row"><span class="stat-label">Avg Time / Q</span><span class="stat-val" id="final-avgtime">0s</span></div>
+  <div class="stat-row"><span class="stat-label">High Score</span><span class="stat-val" id="high-score">0</span></div>
+  <button class="btn" onclick="restartGame()">🔄 Play Again</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;margin-top:4px;">🏆 Top Scores</p>
+  <div id="lb-list-end"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<script>
+  const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
+  const fbApp=firebase.initializeApp(fbConfig,'lb_timestables');
+  const db=firebase.database(fbApp);
+  const HS_KEY='hs_timestables';
+
+  let audioCtx=null;
+  function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+  function playBeep(freq,dur,type='sine',vol=0.3){try{const c=getAudio(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+  function playCorrect(){playBeep(523,0.07);setTimeout(()=>playBeep(659,0.07),70);setTimeout(()=>playBeep(784,0.1),140);}
+  function playWrong(){playBeep(200,0.18,'sawtooth',0.2);}
+  function playFireworks(){for(let i=0;i<4;i++)setTimeout(()=>playBeep(600+i*150,0.08),i*100);}
+
+  let gameMode='normal', focusTable=2;
+  let score=0, qNum=0, correctCount=0, totalAttempts=0;
+  let timeLeft=90, timerInterval=null, gameActive=false;
+  let currentA=0, currentB=0, currentAns=0;
+  let questionStartTime=0, totalTime=0;
+  const TOTAL_Q=30;
+  const encourageCorrect=['🔥 On Fire!','⭐ Perfect!','💪 Keep going!','🚀 Blazing!','🌟 Superstar!','👏 Excellent!','🎯 Spot on!'];
+  const encourageWrong=['Almost!','Try harder!','You got this!','Keep going!'];
+
+  function selectMode(btn, mode){
+    gameMode=mode;
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    const fr=document.getElementById('focus-row');
+    if(mode==='practice'){
+      fr.style.display='flex';
+      buildTableSelector();
+    } else {
+      fr.style.display='none';
+    }
+  }
+
+  function buildTableSelector(){
+    const fr=document.getElementById('focus-row');
+    // Keep the label span, rebuild buttons
+    fr.innerHTML='<span style="color:#ffcccc;font-size:14px;">Table:</span>';
+    for(let t=1;t<=12;t++){
+      const b=document.createElement('button');
+      b.className='table-sel'+(t===focusTable?' selected':'');
+      b.textContent=t+'×';
+      const tc=t;
+      b.onclick=()=>{focusTable=tc;document.querySelectorAll('.table-sel').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');};
+      fr.appendChild(b);
+    }
+  }
+
+  function buildGrid(){
+    const g=document.getElementById('tt-grid');
+    g.innerHTML='';
+    // Header row
+    const corner=document.createElement('div');
+    corner.className='tt-cell tt-header'; corner.textContent='×'; g.appendChild(corner);
+    for(let c=1;c<=12;c++){const h=document.createElement('div');h.className='tt-cell tt-header';h.textContent=c;g.appendChild(h);}
+    // Body rows
+    for(let r=1;r<=12;r++){
+      const rh=document.createElement('div');rh.className='tt-cell tt-header';rh.textContent=r;g.appendChild(rh);
+      for(let c=1;c<=12;c++){
+        const cell=document.createElement('div');
+        cell.className='tt-cell tt-body';
+        cell.id=`cell-${r}-${c}`;
+        cell.textContent=r*c;
+        g.appendChild(cell);
+      }
+    }
+  }
+
+  function highlightCell(a,b,correct){
+    // Clear previous highlights
+    document.querySelectorAll('.tt-recent').forEach(el=>{el.classList.remove('tt-recent');});
+    const c1=document.getElementById(`cell-${a}-${b}`);
+    const c2=document.getElementById(`cell-${b}-${a}`);
+    if(c1){c1.classList.remove('tt-highlight');c1.classList.add('tt-recent');}
+    if(c2&&c2!==c1){c2.classList.remove('tt-highlight');c2.classList.add('tt-recent');}
+    if(correct){
+      if(c1)c1.classList.add('tt-highlight');
+      if(c2&&c2!==c1)c2.classList.add('tt-highlight');
+    }
+  }
+
+  function genQuestion(){
+    let a, b;
+    if(gameMode==='practice'){
+      a=focusTable; b=Math.floor(Math.random()*12)+1;
+    } else {
+      a=Math.floor(Math.random()*12)+1;
+      b=Math.floor(Math.random()*12)+1;
+    }
+    currentA=a; currentB=b; currentAns=a*b;
+    const diffClass=a<=5&&b<=5?'diff-easy':a<=9&&b<=9?'diff-med':'diff-hard';
+    document.getElementById('problem').innerHTML=`<span class="${diffClass}">${a} × ${b} = ?</span>`;
+    questionStartTime=Date.now();
+  }
+
+  function startGame(){
+    getAudio();
+    score=0;qNum=0;correctCount=0;totalAttempts=0;totalTime=0;gameActive=true;
+    timeLeft=(gameMode==='speed')?60:90;
+    document.getElementById('start-screen').style.display='none';
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('game-screen').style.display='flex';
+    buildGrid();
+    updateHUD();
+    genQuestion();
+    document.getElementById('answer-input').value='';
+    document.getElementById('answer-input').focus();
+    document.getElementById('msg').textContent='';
+    timerInterval=setInterval(tick,1000);
+  }
+
+  function tick(){
+    timeLeft--;
+    updateHUD();
+    if(timeLeft<=0) endGame();
+  }
+
+  function updateHUD(){
+    document.getElementById('score-display').textContent=score;
+    document.getElementById('time-display').textContent=timeLeft;
+    if(gameMode==='speed'){
+      document.getElementById('q-info').textContent=`Q ${qNum+1}`;
+      document.getElementById('progress-bar').style.width=Math.min(100,(qNum/50)*100)+'%';
+    } else {
+      document.getElementById('q-info').textContent=`Q ${qNum+1}/${TOTAL_Q}`;
+      document.getElementById('progress-bar').style.width=(qNum/TOTAL_Q*100)+'%';
+    }
+  }
+
+  function submitAnswer(){
+    if(!gameActive)return;
+    const inp=document.getElementById('answer-input');
+    const val=parseInt(inp.value,10);
+    if(isNaN(val))return;
+    const elapsed=(Date.now()-questionStartTime)/1000;
+    totalTime+=elapsed;
+    totalAttempts++;
+    if(val===currentAns){
+      correctCount++;
+      const pts=Math.max(5,Math.round(10+(5-Math.min(5,elapsed))*3));
+      score+=pts;
+      playCorrect();
+      const msg=encourageCorrect[Math.floor(Math.random()*encourageCorrect.length)];
+      document.getElementById('msg').innerHTML=`<span style="color:#00ff88">${msg}</span>`;
+      highlightCell(currentA,currentB,true);
+      document.body.classList.remove('flash-c');void document.body.offsetWidth;document.body.classList.add('flash-c');
+      setTimeout(()=>document.body.classList.remove('flash-c'),250);
+    } else {
+      playWrong();
+      document.getElementById('msg').innerHTML=`<span style="color:#ff4444">✗ ${currentA}×${currentB}=${currentAns}</span>`;
+      highlightCell(currentA,currentB,false);
+    }
+    inp.value='';
+    updateHUD();
+    qNum++;
+    if(gameMode!=='speed'&&qNum>=TOTAL_Q){
+      setTimeout(endGame,500);
+    } else {
+      setTimeout(()=>{genQuestion();inp.focus();},350);
+    }
+  }
+
+  function endGame(){
+    clearInterval(timerInterval);
+    gameActive=false;
+    document.getElementById('game-screen').style.display='none';
+    document.getElementById('end-screen').style.display='flex';
+    const acc=totalAttempts>0?Math.round(correctCount/totalAttempts*100):0;
+    const avgTime=totalAttempts>0?(totalTime/totalAttempts).toFixed(1):0;
+    document.getElementById('final-score').textContent=score;
+    document.getElementById('final-correct').textContent=`${correctCount}/${totalAttempts}`;
+    document.getElementById('final-acc').textContent=acc+'%';
+    document.getElementById('final-avgtime').textContent=avgTime+'s';
+    // Stars
+    let stars=1;
+    if(acc>=90&&score>=200)stars=3;
+    else if(acc>=70&&score>=100)stars=2;
+    document.getElementById('stars').textContent='⭐'.repeat(stars)+'☆'.repeat(3-stars);
+    if(stars===3)playFireworks();
+    const hs=Math.max(score,parseInt(localStorage.getItem(HS_KEY)||'0'));
+    localStorage.setItem(HS_KEY,hs);
+    document.getElementById('high-score').textContent=hs;
+    if(score>0){
+      const playerName=localStorage.getItem('visitorName')||'Player';
+      db.ref('leaderboard/timestables/'+Date.now()).set({name:playerName,score,date:new Date().toLocaleDateString()});
+    }
+    loadLeaderboard('lb-list-end');
+  }
+
+  function restartGame(){
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('start-screen').style.display='flex';
+    loadLeaderboard('lb-list');
+  }
+
+  function loadLeaderboard(targetId){
+    db.ref('leaderboard/timestables').orderByChild('score').limitToLast(10).once('value').then(snap=>{
+      const entries=[];snap.forEach(c=>entries.push(c.val()));entries.sort((a,b)=>b.score-a.score);
+      const el=document.getElementById(targetId);
+      if(!entries.length){el.innerHTML='<p style="color:#ff9999;font-size:13px;">No scores yet!</p>';return;}
+      el.innerHTML=entries.map((e,i)=>`<div class="lb-row"><span>${i+1}. ${e.name}</span><span style="color:yellow">${e.score}</span><span style="color:#ff9999;font-size:11px">${e.date||''}</span></div>`).join('');
+    }).catch(()=>{});
+  }
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&gameActive)submitAnswer();
+  });
+
+  loadLeaderboard('lb-list');
+</script>
+</body>
+</html>

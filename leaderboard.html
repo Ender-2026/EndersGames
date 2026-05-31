@@ -67,6 +67,13 @@ tr:nth-child(3) td{color:#ffccaa}
   <button class="tab-btn" onclick="filterTab('tennis',this)">🎾 Tennis</button>
   <button class="tab-btn" onclick="filterTab('darts',this)">🎯 Darts 301</button>
   <button class="tab-btn" onclick="filterTab('cookieclicker',this)">🍪 Cookie Clicker</button>
+  <button class="tab-btn" onclick="filterTab('mathblitz',this)">➕ Math Blitz</button>
+  <button class="tab-btn" onclick="filterTab('fractionfun',this)">🥧 Fraction Fun</button>
+  <button class="tab-btn" onclick="filterTab('spellingbee',this)">🐝 Spelling Bee</button>
+  <button class="tab-btn" onclick="filterTab('timestables',this)">✖️ Times Tables</button>
+  <button class="tab-btn" onclick="filterTab('grammarfix',this)">📝 Grammar Fix</button>
+  <button class="tab-btn" onclick="filterTab('wordwizard',this)">🧙 Word Wizard</button>
+  <button class="tab-btn" onclick="filterTab('readingquest',this)">🔍 Reading Quest</button>
 </div>
 
 <div id="loading">Loading scores...</div>
@@ -97,7 +104,11 @@ var gameLabels = {
   fruitninja:'🍉 Fruit Ninja', dodgemaster:'⚡ Dodge Master',
   galaga:'🛸 Galaga', crossyroad:'🐸 Crossy Road',
   football:'🏈 Football QB', tennis:'🎾 Tennis',
-  darts:'🎯 Darts 301', cookieclicker:'🍪 Cookie Clicker'
+  darts:'🎯 Darts 301', cookieclicker:'🍪 Cookie Clicker',
+  mathblitz:'➕ Math Blitz', fractionfun:'🥧 Fraction Fun',
+  spellingbee:'🐝 Spelling Bee', timestables:'✖️ Times Tables',
+  grammarfix:'📝 Grammar Fix', wordwizard:'🧙 Word Wizard',
+  readingquest:'🔍 Reading Quest'
 };
 
 var firebase_app = firebase.initializeApp(firebaseConfig);

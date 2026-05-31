@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Spelling Bee - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 10px; }
+    h1 { font-size: 26px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 24px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.5); }
+    .small-btn { padding: 7px 16px; font-size: 14px; }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    #game-screen { max-width: 480px; width: 100%; display: none; flex-direction: column; align-items: center; gap: 10px; }
+    #end-screen { display: none; }
+    .cat-btn { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 8px; padding: 7px 13px; font-size: 13px; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; }
+    .cat-btn.selected { background: #cc0000; color: yellow; border-color: yellow; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 15px; font-weight: bold; color: #ffcc00; }
+    #def-card { background: #2a0000; border: 2px solid #ff6666; border-radius: 12px; padding: 14px 16px; text-align: center; width: 100%; }
+    #category-badge { font-size: 12px; color: #ffaa44; margin-bottom: 6px; }
+    #definition { font-size: 18px; color: white; line-height: 1.4; }
+    #word-input { background: #2a0000; border: 2px solid #ff6666; color: white; font-size: 22px; text-align: center; width: 100%; padding: 10px; border-radius: 8px; outline: none; letter-spacing: 3px; }
+    #word-input:focus { border-color: yellow; }
+    #input-row { display: flex; gap: 8px; width: 100%; }
+    #hint-btn { background: darkred; border: 2px solid #ff6666; color: #ffcc00; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+    #letter-reveal { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; min-height: 42px; }
+    .letter-box { width: 34px; height: 38px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; border: 2px solid; }
+    .letter-box.correct-letter { background: #004400; border-color: #00cc44; color: #88ff88; }
+    .letter-box.wrong-letter { background: #440000; border-color: #cc2222; color: #ff8888; }
+    .letter-box.blank { background: #2a0000; border-color: #ff6666; color: transparent; }
+    #sentence-box { font-size: 14px; color: #ffaa88; text-align: center; font-style: italic; min-height: 20px; padding: 4px 8px; }
+    #feedback { font-size: 20px; font-weight: bold; text-align: center; min-height: 28px; }
+    #bee-anim { font-size: 36px; text-align: center; min-height: 44px; transition: transform 0.3s; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 5px 0; }
+    .stat-label { color: #ffcccc; } .stat-val { color: yellow; font-weight: bold; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 150px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    @keyframes bee-dance { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-8px) rotate(-10deg)} 75%{transform:translateY(-4px) rotate(10deg)} }
+    .bee-dancing { animation: bee-dance 0.5s ease 2; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<!-- START -->
+<div id="start-screen">
+  <h1>🐝 Spelling Bee</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:14px;">Read the clue, type the word. Use hints if you're stuck!</p>
+  <p style="color:#ffaa44;font-size:13px;">Choose a category (or All):</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+    <button class="cat-btn selected" onclick="selectCat(this,'all')">All 🎲</button>
+    <button class="cat-btn" onclick="selectCat(this,'Animals')">Animals 🦁</button>
+    <button class="cat-btn" onclick="selectCat(this,'Food')">Food 🍕</button>
+    <button class="cat-btn" onclick="selectCat(this,'School')">School 📚</button>
+    <button class="cat-btn" onclick="selectCat(this,'Nature')">Nature 🌿</button>
+    <button class="cat-btn" onclick="selectCat(this,'Sports')">Sports ⚽</button>
+  </div>
+  <button class="btn" onclick="startGame()">▶ Start Game</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;">🏆 Top Scores</p>
+  <div id="lb-list"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+  <div id="hud">
+    <span>⭐ <span id="score-display">0</span></span>
+    <span>🐝 Word <span id="q-counter">1/15</span></span>
+    <span>💡 Hints: <span id="hints-used">0</span></span>
+  </div>
+  <div id="bee-anim">🐝</div>
+  <div id="def-card">
+    <div id="category-badge">Category: —</div>
+    <div id="definition">Loading...</div>
+  </div>
+  <div id="letter-reveal"></div>
+  <div id="feedback"></div>
+  <div id="input-row">
+    <input id="word-input" type="text" placeholder="Type the word..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button id="hint-btn" onclick="useHint()">💡 Hint (-5)</button>
+  </div>
+  <button class="btn" onclick="submitWord()" style="width:100%">✓ Submit</button>
+  <div id="sentence-box"></div>
+</div>
+
+<!-- END -->
+<div id="end-screen">
+  <h1>🐝 Round Complete!</h1>
+  <div style="font-size:36px;text-align:center">🎉</div>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="final-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Correct Words</span><span class="stat-val" id="final-correct">0/15</span></div>
+  <div class="stat-row"><span class="stat-label">Hints Used</span><span class="stat-val" id="final-hints">0</span></div>
+  <div class="stat-row"><span class="stat-label">High Score</span><span class="stat-val" id="high-score">0</span></div>
+  <button class="btn" onclick="restartGame()">🔄 Play Again</button>
+  <p style="color:yellow;font-size:14px;font-weight:bold;margin-top:4px;">🏆 Top Scores</p>
+  <div id="lb-list-end"><p style="color:#ff9999;font-size:13px;">Loading...</p></div>
+</div>
+
+<script>
+  const fbConfig = {apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
+  const fbApp = firebase.initializeApp(fbConfig, 'lb_spellingbee');
+  const db = firebase.database(fbApp);
+  const HS_KEY = 'hs_spellingbee';
+
+  let audioCtx=null;
+  function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+  function playBeep(freq,dur,type='sine',vol=0.3){try{const c=getAudio(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+  function playCorrect(){playBeep(523,0.08);setTimeout(()=>playBeep(659,0.08),80);setTimeout(()=>playBeep(784,0.12),160);}
+  function playWrong(){playBeep(200,0.2,'sawtooth',0.2);}
+
+  const wordList = [
+    // Animals
+    {word:'elephant',cat:'Animals',def:'The biggest land animal with a long trunk and big ears',sentence:'The elephant sprayed water with its trunk.'},
+    {word:'giraffe',cat:'Animals',def:'The tallest animal alive, with a very long neck',sentence:'The giraffe reached the top leaves easily.'},
+    {word:'dolphin',cat:'Animals',def:'A smart ocean animal that loves to jump and play',sentence:'The dolphin leaped over the waves.'},
+    {word:'penguin',cat:'Animals',def:'A black and white bird that swims but cannot fly',sentence:'The penguin waddled across the ice.'},
+    {word:'butterfly',cat:'Animals',def:'A beautiful insect with colorful wings that starts as a caterpillar',sentence:'The butterfly landed on a bright flower.'},
+    {word:'cheetah',cat:'Animals',def:'The fastest land animal on Earth',sentence:'The cheetah sprinted across the savanna.'},
+    {word:'flamingo',cat:'Animals',def:'A pink bird that stands on one leg in the water',sentence:'The flamingo stood still in the shallow lake.'},
+    {word:'octopus',cat:'Animals',def:'A sea creature with eight arms and no bones',sentence:'The octopus changed color to hide from a shark.'},
+    // Food
+    {word:'broccoli',cat:'Food',def:'A green vegetable that looks like a tiny tree',sentence:'Mom put broccoli in the stir-fry.'},
+    {word:'spaghetti',cat:'Food',def:'Long thin pasta noodles from Italy',sentence:'He twirled the spaghetti on his fork.'},
+    {word:'avocado',cat:'Food',def:'A creamy green fruit used to make guacamole',sentence:'She spread avocado on her toast.'},
+    {word:'cinnamon',cat:'Food',def:'A sweet brown spice from tree bark',sentence:'She sprinkled cinnamon on her oatmeal.'},
+    {word:'mushroom',cat:'Food',def:'A fungus that grows in damp places and is used in cooking',sentence:'He added mushroom to the pizza.'},
+    {word:'blueberry',cat:'Food',def:'A small blue fruit that grows on bushes',sentence:'She put blueberry in her muffin batter.'},
+    {word:'pineapple',cat:'Food',def:'A tropical fruit with a spiky outside and sweet inside',sentence:'The pineapple grew in a warm tropical country.'},
+    {word:'chocolate',cat:'Food',def:'A sweet brown food made from cacao beans',sentence:'The chocolate cake looked delicious.'},
+    // School
+    {word:'pencil',cat:'School',def:'A thin stick used to write or draw, often made of wood',sentence:'She sharpened her pencil before the test.'},
+    {word:'notebook',cat:'School',def:'A book with blank pages for writing notes',sentence:'He wrote his homework in a notebook.'},
+    {word:'library',cat:'School',def:'A room or building full of books you can borrow',sentence:'She found the perfect book in the library.'},
+    {word:'scissors',cat:'School',def:'A tool with two sharp blades for cutting paper',sentence:'Be careful when you use scissors.'},
+    {word:'calculator',cat:'School',def:'A small machine that does math for you',sentence:'He used a calculator to check his answer.'},
+    {word:'classroom',cat:'School',def:'The room at school where you learn with your teacher',sentence:'The classroom was decorated with student art.'},
+    {word:'geography',cat:'School',def:'The study of countries, mountains, rivers, and places on Earth',sentence:'In geography class we learned about the Amazon River.'},
+    {word:'subtract',cat:'School',def:'To take one number away from another in math',sentence:'If you subtract 3 from 10 you get 7.'},
+    // Nature
+    {word:'volcano',cat:'Nature',def:'A mountain that can erupt with hot lava from inside the Earth',sentence:'The volcano erupted and ash filled the sky.'},
+    {word:'rainbow',cat:'Nature',def:'A colorful arc that appears in the sky after rain',sentence:'A rainbow appeared after the storm.'},
+    {word:'tornado',cat:'Nature',def:'A spinning column of air that can destroy buildings',sentence:'The tornado touched down in the field.'},
+    {word:'blizzard',cat:'Nature',def:'A severe snowstorm with very strong winds',sentence:'The blizzard buried the cars in snow.'},
+    {word:'thunder',cat:'Nature',def:'The loud rumbling sound that follows lightning',sentence:'Thunder boomed across the dark sky.'},
+    {word:'glacier',cat:'Nature',def:'A huge slow-moving river of ice found in cold places',sentence:'The glacier carved out a deep valley over thousands of years.'},
+    {word:'hurricane',cat:'Nature',def:'A massive spinning storm with very strong winds and rain',sentence:'The hurricane brought heavy rain to the coast.'},
+    {word:'mountain',cat:'Nature',def:'A very tall rocky landform rising above the land around it',sentence:'They climbed the mountain at sunrise.'},
+    // Sports
+    {word:'baseball',cat:'Sports',def:'A sport played with a bat and ball on a diamond-shaped field',sentence:'He hit a home run in baseball practice.'},
+    {word:'football',cat:'Sports',def:'A sport played with an oval ball where teams score touchdowns',sentence:'The football team practiced every afternoon.'},
+    {word:'basketball',cat:'Sports',def:'A sport where you throw a ball through a hoop to score',sentence:'She scored the winning basket in basketball.'},
+    {word:'swimming',cat:'Sports',def:'Moving through water using your arms and legs',sentence:'He won a gold medal in swimming.'},
+    {word:'gymnastics',cat:'Sports',def:'A sport involving flips, balances, and acrobatic moves',sentence:'She trained six hours a day for gymnastics.'},
+    {word:'archery',cat:'Sports',def:'The sport of shooting arrows at a target with a bow',sentence:'He hit the bullseye in archery class.'},
+    {word:'volleyball',cat:'Sports',def:'A sport where teams hit a ball over a net',sentence:'The volleyball team spiked the ball over the net.'},
+    {word:'skateboard',cat:'Sports',def:'A flat board with wheels you ride and do tricks on',sentence:'He ollied over the ramp on his skateboard.'}
+  ];
+
+  let selectedCat='all', score=0, wordNum=0, correctCount=0, totalHints=0;
+  let hintsRevealedThisWord=0, currentWord=null, gameWords=[], gameActive=false;
+  const TOTAL_WORDS=15;
+
+  function selectCat(btn,cat){
+    selectedCat=cat;
+    document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
+
+  function startGame(){
+    getAudio();
+    score=0;wordNum=0;correctCount=0;totalHints=0;gameActive=true;
+    const pool=selectedCat==='all'?wordList:wordList.filter(w=>w.cat===selectedCat);
+    gameWords=shuffle(pool).slice(0,TOTAL_WORDS);
+    document.getElementById('start-screen').style.display='none';
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('game-screen').style.display='flex';
+    showWord();
+  }
+
+  function showWord(){
+    if(wordNum>=TOTAL_WORDS){endGame();return;}
+    hintsRevealedThisWord=0;
+    currentWord=gameWords[wordNum];
+    document.getElementById('q-counter').textContent=`${wordNum+1}/${TOTAL_WORDS}`;
+    document.getElementById('category-badge').textContent=`Category: ${currentWord.cat}`;
+    document.getElementById('definition').textContent=currentWord.def;
+    document.getElementById('word-input').value='';
+    document.getElementById('word-input').focus();
+    document.getElementById('feedback').textContent='';
+    document.getElementById('sentence-box').textContent='';
+    document.getElementById('score-display').textContent=score;
+    document.getElementById('hints-used').textContent=totalHints;
+    document.getElementById('bee-anim').textContent='🐝';
+    // Show blank letter boxes
+    renderLetterBoxes(currentWord.word, null);
+  }
+
+  function renderLetterBoxes(word, typedWord){
+    const reveal=document.getElementById('letter-reveal');
+    reveal.innerHTML='';
+    for(let i=0;i<word.length;i++){
+      const box=document.createElement('div');
+      box.className='letter-box';
+      if(typedWord===null){
+        // Show hints revealed
+        if(i<hintsRevealedThisWord){
+          box.textContent=word[i].toUpperCase();
+          box.classList.add('correct-letter');
+        } else {
+          box.textContent='_';
+          box.style.color='#ff6666';
+          box.style.borderColor='#ff6666';
+          box.style.background='#2a0000';
+        }
+      } else {
+        box.textContent=word[i].toUpperCase();
+        if(typedWord[i]&&typedWord[i].toLowerCase()===word[i].toLowerCase()){
+          box.classList.add('correct-letter');
+        } else {
+          box.classList.add('wrong-letter');
+        }
+      }
+      reveal.appendChild(box);
+    }
+  }
+
+  function useHint(){
+    if(!gameActive||!currentWord)return;
+    if(hintsRevealedThisWord>=currentWord.word.length-1)return;
+    hintsRevealedThisWord++;
+    totalHints++;
+    score=Math.max(0,score-5);
+    document.getElementById('score-display').textContent=score;
+    document.getElementById('hints-used').textContent=totalHints;
+    renderLetterBoxes(currentWord.word,null);
+    playBeep(440,0.1);
+  }
+
+  function submitWord(){
+    if(!gameActive||!currentWord)return;
+    const typed=document.getElementById('word-input').value.trim().toLowerCase();
+    if(!typed)return;
+    const correct=currentWord.word.toLowerCase();
+    if(typed===correct){
+      // Correct
+      const base=50;
+      const hintPenalty=hintsRevealedThisWord*5;
+      const pts=Math.max(10,base-hintPenalty);
+      score+=pts;
+      correctCount++;
+      playCorrect();
+      document.getElementById('feedback').innerHTML=`<span style="color:#00ff88">✓ Correct! +${pts} pts 🎉</span>`;
+      document.getElementById('sentence-box').textContent='"' + currentWord.sentence + '"';
+      const bee=document.getElementById('bee-anim');
+      bee.textContent='🐝✨';
+      bee.classList.remove('bee-dancing');
+      void bee.offsetWidth;
+      bee.classList.add('bee-dancing');
+      renderLetterBoxes(correct, correct);
+    } else {
+      // Wrong — show letter-by-letter comparison
+      playWrong();
+      renderLetterBoxes(correct, typed);
+      document.getElementById('feedback').innerHTML=`<span style="color:#ff4444">✗ The word was: <strong style="color:#ffcc00">${correct.toUpperCase()}</strong></span>`;
+      document.getElementById('sentence-box').textContent='"' + currentWord.sentence + '"';
+      document.getElementById('bee-anim').textContent='😔';
+    }
+    document.getElementById('score-display').textContent=score;
+    setTimeout(()=>{wordNum++;showWord();},1600);
+  }
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&gameActive)submitWord();
+  });
+
+  function endGame(){
+    gameActive=false;
+    document.getElementById('game-screen').style.display='none';
+    document.getElementById('end-screen').style.display='flex';
+    document.getElementById('final-score').textContent=score;
+    document.getElementById('final-correct').textContent=`${correctCount}/${TOTAL_WORDS}`;
+    document.getElementById('final-hints').textContent=totalHints;
+    const hs=Math.max(score,parseInt(localStorage.getItem(HS_KEY)||'0'));
+    localStorage.setItem(HS_KEY,hs);
+    document.getElementById('high-score').textContent=hs;
+    if(score>0){
+      const playerName=localStorage.getItem('visitorName')||'Player';
+      db.ref('leaderboard/spellingbee/'+Date.now()).set({name:playerName,score,date:new Date().toLocaleDateString()});
+    }
+    loadLeaderboard('lb-list-end');
+  }
+
+  function restartGame(){
+    document.getElementById('end-screen').style.display='none';
+    document.getElementById('start-screen').style.display='flex';
+    loadLeaderboard('lb-list');
+  }
+
+  function loadLeaderboard(targetId){
+    db.ref('leaderboard/spellingbee').orderByChild('score').limitToLast(10).once('value').then(snap=>{
+      const entries=[];snap.forEach(c=>entries.push(c.val()));entries.sort((a,b)=>b.score-a.score);
+      const el=document.getElementById(targetId);
+      if(!entries.length){el.innerHTML='<p style="color:#ff9999;font-size:13px;">No scores yet!</p>';return;}
+      el.innerHTML=entries.map((e,i)=>`<div class="lb-row"><span>${i+1}. ${e.name}</span><span style="color:yellow">${e.score}</span><span style="color:#ff9999;font-size:11px">${e.date||''}</span></div>`).join('');
+    }).catch(()=>{});
+  }
+
+  loadLeaderboard('lb-list');
+</script>
+</body>
+</html>

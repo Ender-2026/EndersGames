@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Reading Quest - Ender's Game World</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a0000;color:#fff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:50px 10px 30px}
+  h1{color:#ffff00;font-size:2em;text-shadow:0 0 10px #ff0;margin-bottom:4px;text-align:center}
+  .subtitle{color:#ff9999;font-size:0.9em;margin-bottom:15px}
+  #top-bar{display:flex;gap:14px;align-items:center;margin-bottom:12px;flex-wrap:wrap;justify-content:center;display:none}
+  .stat{background:#2a0000;border:1px solid #ff6666;border-radius:8px;padding:5px 12px;font-size:0.9em}
+  .stat span{color:#ffff00;font-weight:bold}
+  #passage-progress{width:100%;max-width:580px;display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+  .p-dot{width:20px;height:20px;border-radius:50%;background:#3a0000;border:2px solid #ff6666;transition:all 0.3s}
+  .p-dot.active{background:#cc6600;border-color:#ffcc00}
+  .p-dot.done{background:#006600;border-color:#00cc00}
+
+  /* Start screen */
+  #start-screen{width:100%;max-width:580px;text-align:center}
+  #start-screen p{color:#ffcc66;margin-bottom:14px;line-height:1.6}
+  .mode-toggle{display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+  .toggle-btn{background:#2a0000;border:2px solid #ff6666;color:#fff;padding:10px 20px;border-radius:10px;cursor:pointer;font-size:0.95em;font-family:inherit;transition:all 0.2s}
+  .toggle-btn.active{background:#440000;border-color:#ffff00;color:#ffff00}
+  #start-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:14px 36px;border-radius:10px;font-size:1.2em;cursor:pointer;font-family:inherit}
+  #start-btn:hover{background:#660000;border-color:#ffff00}
+
+  /* Reading phase */
+  #reading-phase{display:none;width:100%;max-width:580px}
+  #passage-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  #passage-tag{background:#440000;border:1px solid #ff9999;border-radius:20px;padding:4px 12px;font-size:0.8em;color:#ff9999;text-transform:uppercase;letter-spacing:1px}
+  #passage-title{color:#ffff00;font-size:1.3em;font-weight:bold}
+  #passage-box{background:#2a0000;border:2px solid #ff6666;border-radius:16px;padding:20px;margin-bottom:16px;font-size:1.05em;line-height:1.9;color:#fff}
+  #timer-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;justify-content:space-between;flex-wrap:wrap}
+  #timer-display{background:#2a0000;border:1px solid #ff6666;border-radius:8px;padding:5px 14px;font-size:0.9em;color:#ffcc66}
+  #timer-display.warning{color:#ff6666;border-color:#ff3333}
+  #questions-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:8px 18px;border-radius:8px;font-size:0.9em;cursor:pointer;font-family:inherit}
+  #questions-btn:hover{background:#660000;border-color:#ffff00}
+  #questions-section{margin-top:8px}
+  .q-block{background:#2a0000;border:1px solid #660000;border-radius:12px;padding:16px;margin-bottom:12px;transition:border-color 0.3s}
+  .q-block.answered-correct{border-color:#006600}
+  .q-block.answered-wrong{border-color:#660000}
+  .q-num{color:#ff9999;font-size:0.8em;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .q-text{color:#ffcc88;font-size:1em;margin-bottom:10px;line-height:1.5}
+  .q-choices{display:flex;flex-direction:column;gap:7px}
+  .q-choice{background:#1a0000;border:2px solid #444;color:#fff;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:0.95em;text-align:left;transition:all 0.2s;font-family:inherit}
+  .q-choice:hover:not(:disabled){background:#2a0000;border-color:#ff9999}
+  .q-choice.correct{background:#003300;border-color:#00cc00;color:#66ff66}
+  .q-choice.wrong{background:#330000;border-color:#cc0000;color:#ff6666}
+  .q-choice:disabled{cursor:default}
+  .q-explanation{background:#1a1a00;border:1px solid #ffff00;border-radius:8px;padding:10px;margin-top:10px;font-size:0.88em;color:#ffcc88;line-height:1.5;display:none}
+  .q-explanation.show{display:block;animation:fadeIn 0.4s}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  #next-passage-btn{display:none;background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 28px;border-radius:10px;font-size:1.05em;cursor:pointer;margin:0 auto;display:none;font-family:inherit}
+  #next-passage-btn:hover{background:#660000;border-color:#ffff00}
+
+  /* End screen */
+  #end-screen{display:none;text-align:center;width:100%;max-width:580px}
+  #end-screen h2{color:#ffff00;font-size:2em;margin-bottom:10px}
+  #end-score{font-size:1.4em;color:#ffcc66;margin-bottom:20px}
+  #lb-form{background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:18px;margin-bottom:18px}
+  #lb-form input{background:#1a0000;border:1px solid #ff6666;color:#fff;padding:8px 12px;border-radius:6px;font-size:1em;width:100%;margin-bottom:10px;font-family:inherit}
+  #lb-form button{background:darkred;border:2px solid #ff6666;color:#fff;padding:10px 22px;border-radius:8px;font-size:1em;cursor:pointer;font-family:inherit}
+  #lb-list{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:14px;margin-bottom:14px;max-height:200px;overflow-y:auto}
+  #lb-list .lb-entry{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #3a0000;font-size:0.9em}
+  #lb-list .lb-entry:last-child{border:none}
+  #play-again-btn{background:darkred;border:2px solid #ff6666;color:#fff;padding:12px 30px;border-radius:10px;font-size:1.1em;cursor:pointer;font-family:inherit}
+  #play-again-btn:hover{background:#660000;border-color:#ffff00}
+  .score-detail{background:#2a0000;border:1px solid #ff6666;border-radius:10px;padding:12px;margin-bottom:12px}
+  .score-row{display:flex;justify-content:space-between;padding:4px 0;font-size:0.9em;color:#ffcc88}
+</style>
+</head>
+<body>
+<a href="index.html" id="home-btn" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99">🏠 Home</a>
+
+<h1>📚 Reading Quest</h1>
+<p class="subtitle">Read, think, and answer!</p>
+
+<div id="start-screen">
+  <p>Read a short passage carefully, then answer<br>
+  <strong style="color:#ffff00">5 comprehension questions</strong> per story.<br>
+  You'll read <strong style="color:#ffff00">3 passages</strong> — 15 questions total!</p>
+  <div class="mode-toggle">
+    <button class="toggle-btn active" id="timer-off-btn" onclick="setTimer(false)">🐢 Relaxed (no timer)</button>
+    <button class="toggle-btn" id="timer-on-btn" onclick="setTimer(true)">⏱️ Timed Challenge</button>
+  </div>
+  <button id="start-btn">▶ Begin Quest!</button>
+</div>
+
+<div id="top-bar">
+  <div class="stat">Score: <span id="score-val">0</span></div>
+  <div class="stat">Passage: <span id="p-num">1</span>/3</div>
+  <div class="stat">Correct: <span id="correct-val">0</span>/15</div>
+</div>
+<div id="passage-progress" style="display:none">
+  <div class="p-dot active" id="dot-0"></div>
+  <div class="p-dot" id="dot-1"></div>
+  <div class="p-dot" id="dot-2"></div>
+</div>
+
+<div id="reading-phase">
+  <div id="passage-header">
+    <span id="passage-tag"></span>
+    <span id="passage-title"></span>
+  </div>
+  <div id="timer-row">
+    <div id="timer-display" style="display:none">⏱️ Time: <span id="timer-val">3:00</span></div>
+    <button id="questions-btn">Jump to Questions ↓</button>
+  </div>
+  <div id="passage-box"></div>
+  <div id="questions-section"></div>
+  <div style="text-align:center;margin-top:14px"><button id="next-passage-btn">Next Passage →</button></div>
+</div>
+
+<div id="end-screen">
+  <div style="font-size:2.5em" id="end-badge"></div>
+  <h2>Quest Complete!</h2>
+  <div id="end-score"></div>
+  <div class="score-detail" id="score-detail"></div>
+  <div id="lb-form">
+    <p style="color:#ffcc66;margin-bottom:10px">Submit your score:</p>
+    <input type="text" id="lb-name" placeholder="Your name" maxlength="20">
+    <button id="lb-submit-btn">Submit Score</button>
+  </div>
+  <div id="lb-list"></div>
+  <button id="play-again-btn">🔄 Play Again</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script>
+const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"engers-games",storageBucket:"enders-games.firebasestorage.app",messagingSenderId:"87049074470",appId:"1:87049074470:web:bc38b35669b43aedceb3e7"};
+const fbApp=firebase.initializeApp(fbConfig,'lb_readingquest');
+const db=firebase.database(fbApp);
+const HS_KEY='hs_readingquest';
+
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function beep(freq,dur,type='sine',vol=0.3){try{const a=getAudio();const o=a.createOscillator();const g=a.createGain();o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.start();o.stop(a.currentTime+dur);}catch(e){}}
+function playCorrect(){beep(523,0.1);setTimeout(()=>beep(659,0.1),100);setTimeout(()=>beep(784,0.2),200);}
+function playWrong(){beep(200,0.3,'sawtooth',0.2);}
+
+let timedMode=false;
+let timerInterval=null;
+let timerSeconds=180;
+
+function setTimer(on){
+  timedMode=on;
+  document.getElementById('timer-on-btn').classList.toggle('active',on);
+  document.getElementById('timer-off-btn').classList.toggle('active',!on);
+}
+
+const passages=[
+  {
+    tag:'Science',title:'The Water Cycle',
+    text:`Water is always moving! The water cycle is how water travels from the Earth to the sky and back again. First, the sun heats water in oceans, lakes, and rivers. This warm water turns into water vapor, a gas that rises into the air — this is called evaporation. High in the sky, water vapor cools and forms tiny droplets that make clouds. This is called condensation. When clouds get heavy with water droplets, the water falls back to Earth as rain or snow. This is called precipitation. The water soaks into the ground or flows into rivers and oceans, and then the cycle begins all over again!`,
+    questions:[
+      {text:'What STARTS the water cycle?',choices:['Rain','The sun','Clouds','Snow'],correct:1,explanation:'The sun\'s heat is the energy that starts the water cycle by warming water until it evaporates into the air.'},
+      {text:'What is evaporation?',choices:['Water falling from clouds','Water forming clouds','Water turning into vapor','Water soaking into ground'],correct:2,explanation:'Evaporation is when liquid water is heated and turns into water vapor (a gas) that rises into the air.'},
+      {text:'What does "precipitation" mean in this passage?',choices:['The sun heating water','Water vapor cooling','Water falling as rain or snow','Water turning into gas'],correct:2,explanation:'The passage says "the water falls back to Earth as rain or snow. This is called precipitation." So precipitation = water falling from the sky.'},
+      {text:'What happens AFTER condensation?',choices:['Evaporation','Precipitation','The sun heats water','Water soaks into the ground'],correct:1,explanation:'The order is: evaporation → condensation (cloud formation) → precipitation (water falls). So precipitation comes after condensation.'},
+      {text:'What is the MAIN IDEA of this passage?',choices:['Rain is important for plants','Clouds form in the sky','The sun is very hot','Water travels in a repeating cycle'],correct:3,explanation:'The passage describes how water moves from Earth to sky and back, over and over — that\'s the main idea: water travels in a cycle!'},
+    ]
+  },
+  {
+    tag:'Science / Nature',title:'The Life of a Butterfly',
+    text:`A butterfly's life has four amazing stages called metamorphosis. It begins as a tiny egg, often laid on a leaf. The egg hatches into a caterpillar, also called a larva. The caterpillar eats and grows, shedding its skin several times. Next, it wraps itself in a protective case called a chrysalis, or pupa. Inside the chrysalis, something magical happens — the caterpillar's body completely transforms. After one to two weeks, a beautiful butterfly emerges! It pumps fluid into its wings to expand them, waits for them to dry, and then flies away to find flowers. The butterfly will lay eggs, and the cycle begins again.`,
+    questions:[
+      {text:'How many stages does a butterfly have?',choices:['Two','Three','Four','Five'],correct:2,explanation:'The passage says "A butterfly\'s life has four amazing stages." These are: egg, larva (caterpillar), pupa (chrysalis), and adult butterfly.'},
+      {text:'What is another word for caterpillar?',choices:['Pupa','Larva','Chrysalis','Metamorphosis'],correct:1,explanation:'The passage tells us: "The egg hatches into a caterpillar, also called a larva." So larva = caterpillar!'},
+      {text:'What happens inside the chrysalis?',choices:['The egg hatches','The caterpillar eats more','The butterfly lays eggs','The caterpillar\'s body transforms'],correct:3,explanation:'The passage says "Inside the chrysalis, something magical happens — the caterpillar\'s body completely transforms." That\'s where the big change occurs!'},
+      {text:'What does "emerge" most likely mean?',choices:['To hide','To come out','To fly south','To eat leaves'],correct:1,explanation:'The passage says the butterfly "emerges" after the chrysalis — it comes OUT as a brand new butterfly. Emerge means to come out!'},
+      {text:'What is metamorphosis?',choices:['A type of butterfly','The four stages of a butterfly\'s life','The butterfly\'s wings','A kind of leaf'],correct:1,explanation:'The very first sentence says "A butterfly\'s life has four amazing stages called metamorphosis." So metamorphosis = the complete life cycle with all four stages.'},
+    ]
+  },
+  {
+    tag:'Biography / History',title:'Amelia Earhart',
+    text:`Amelia Earhart was one of the most daring aviators in history. Born in 1897, she fell in love with flying after taking her first airplane ride at age 23. She worked many jobs to save money for flying lessons and bought her first plane, which she called "Canary" because of its yellow color. In 1928, Amelia became the first woman to fly across the Atlantic Ocean — though she was a passenger, not the pilot. Determined to prove herself, she trained harder. In 1932, she flew solo across the Atlantic, becoming the first woman to do so alone. She broke records and inspired millions of girls to follow their dreams, showing the world that courage has no gender.`,
+    questions:[
+      {text:'Why did Amelia call her plane "Canary"?',choices:['It sang like a bird','It was extremely fast','It was yellow','She loved pet canaries'],correct:2,explanation:'The passage says she "bought her first plane, which she called \'Canary\' because of its yellow color." Yellow like a canary bird!'},
+      {text:'What did Amelia do in 1932?',choices:['Took her first flight','Bought her first plane','Flew solo across the Atlantic','Became a passenger on a flight'],correct:2,explanation:'The passage says "In 1932, she flew solo across the Atlantic, becoming the first woman to do so alone."'},
+      {text:'What does "aviator" mean?',choices:['A type of aircraft','A person who flies aircraft','A very brave person','A record-holder'],correct:1,explanation:'An aviator is a person who flies aircraft. The passage calls Amelia "one of the most daring aviators in history" — she was a famous pilot!'},
+      {text:'Why did Amelia train harder after 1928?',choices:['She wanted a new plane','She wanted to be the pilot, not just a passenger','She needed to earn more money','She was afraid of flying'],correct:1,explanation:'In 1928 she crossed the Atlantic as a passenger. The passage says she was "determined to prove herself" — she wanted to fly the plane herself, not just ride along.'},
+      {text:'What is the MAIN MESSAGE of this passage?',choices:['Airplanes are exciting machines','The Atlantic Ocean is very dangerous','Courage and determination help you achieve dreams','Flying is hard to learn'],correct:2,explanation:'The passage ends with Amelia inspiring people and showing "courage has no gender." The main message is that courage and hard work let you achieve your dreams — no matter who you are.'},
+    ]
+  },
+  {
+    tag:'Social Studies',title:'The Ancient Pyramids',
+    text:`The pyramids of ancient Egypt are among the greatest wonders ever built by humans. The largest, called the Great Pyramid of Giza, was constructed over 4,500 years ago for Pharaoh Khufu. It was built using about 2.3 million stone blocks, each weighing as much as 15 tons — heavier than a school bus! For thousands of years, it was the tallest structure on Earth. Historians believe thousands of workers spent 20 years building it. Despite being built without modern machinery, the pyramid's measurements are incredibly precise — the four base sides are nearly equal in length! The ancient Egyptians used math, planning, and teamwork to create something that still amazes people today.`,
+    questions:[
+      {text:'What is the name of the largest pyramid?',choices:['The Pyramid of Ramses','The Great Pyramid of Giza','The Pyramid of Cairo','The Golden Pyramid'],correct:1,explanation:'The passage says "The largest, called the Great Pyramid of Giza, was constructed over 4,500 years ago."'},
+      {text:'Approximately how many stone blocks were used?',choices:['23,000','230,000','2.3 million','23 million'],correct:2,explanation:'The passage states "It was built using about 2.3 million stone blocks."'},
+      {text:'What does "precise" mean in this passage?',choices:['Very large in size','Exactly correct with no errors','Very old and ancient','Built very quickly'],correct:1,explanation:'The passage says the measurements are "incredibly precise" because the four base sides are nearly equal — precise means exact and accurate, with no errors.'},
+      {text:'According to the passage, what helped build the pyramids?',choices:['Modern machinery','Magic and mystery','Math, planning, and teamwork','Rivers and water'],correct:2,explanation:'The final sentence says "The ancient Egyptians used math, planning, and teamwork to create something that still amazes people today."'},
+      {text:'What is the MAIN IDEA of this passage?',choices:['Egypt has a hot climate','Khufu was the greatest pharaoh','The pyramids show amazing ancient engineering','Stone blocks are very heavy'],correct:2,explanation:'The passage is all about how remarkable the pyramids are as engineering feats — how they were built with precision and skill that still impresses people today.'},
+    ]
+  },
+  {
+    tag:'Science',title:'Why Do Leaves Change Color?',
+    text:`Every autumn, trees put on a breathtaking show. Leaves that were green all summer suddenly burst into brilliant reds, oranges, and yellows. But why does this happen? The answer lies in something called chlorophyll. Chlorophyll is the green pigment in leaves that captures sunlight and helps trees make food through photosynthesis. In summer, there's so much chlorophyll that it hides other colors. As days grow shorter and temperatures drop in fall, trees stop making food and chlorophyll breaks down. With the green gone, hidden pigments — yellows and oranges — are finally revealed. Red colors are actually newly made during fall when sugars get trapped in the leaves. So that autumn rainbow? It was hiding there all along!`,
+    questions:[
+      {text:'What is chlorophyll?',choices:['A type of autumn leaf','The green pigment that helps leaves make food','A special kind of tree','The red color in fall leaves'],correct:1,explanation:'The passage says "Chlorophyll is the green pigment in leaves that captures sunlight and helps trees make food through photosynthesis."'},
+      {text:'Why do leaves look green in summer?',choices:['Sunlight makes them green','They absorb water from rain','So much chlorophyll hides the other colors','Trees produce red pigment in summer'],correct:2,explanation:'The passage says "In summer, there\'s so much chlorophyll that it hides other colors." The yellow and orange were always there — just hidden!'},
+      {text:'What causes red colors in autumn leaves?',choices:['Cold temperatures','The disappearance of chlorophyll','Sugars trapped in the leaves','Orange pigments revealed'],correct:2,explanation:'The passage says "Red colors are actually newly made during fall when sugars get trapped in the leaves." Red is different from yellow/orange — it\'s brand new!'},
+      {text:'What does "revealed" most likely mean?',choices:['Destroyed or removed','Made for the first time','Hidden from view','Shown or uncovered'],correct:3,explanation:'The passage says the yellows and oranges are "finally revealed" when green disappears — they were hidden and are now shown. Revealed means uncovered or made visible.'},
+      {text:'What is the MAIN IDEA of this passage?',choices:['Autumn is a beautiful season','Chlorophyll turns red in the fall','Leaves change color due to chlorophyll breaking down','Trees stop growing in winter'],correct:2,explanation:'The whole passage explains why leaves change color: chlorophyll breaks down in fall, revealing hidden pigments and trapping sugars that make red. That\'s the main idea!'},
+    ]
+  },
+  {
+    tag:'Biography',title:'Marie Curie: Pioneer of Science',
+    text:`Marie Curie was a brilliant scientist who changed the world. Born in Poland in 1867, she moved to Paris to study physics and chemistry — subjects rarely open to women at the time. She worked tirelessly in a small, cold laboratory, discovering two new elements: polonium (named after her home country) and radium. She became the first person EVER to win two Nobel Prizes in two different sciences — physics and chemistry. Her research on radioactivity helped develop cancer treatments that save millions of lives today. Despite facing discrimination because she was a woman, Marie never gave up. She once said, "Nothing in life is to be feared; it is only to be understood."`,
+    questions:[
+      {text:'Where was Marie Curie born?',choices:['France','Germany','Poland','England'],correct:2,explanation:'The passage says Marie was "Born in Poland in 1867." She later moved to Paris to study.'},
+      {text:'What was special about her Nobel Prize wins?',choices:['She won three prizes','She was the first woman ever to win','She was the first person to win two prizes in different sciences','She won them both in chemistry'],correct:2,explanation:'The passage says she was "the first person EVER to win two Nobel Prizes in two different sciences — physics and chemistry."'},
+      {text:'What element did she name after her home country?',choices:['Radium','Carbon','Uranium','Polonium'],correct:3,explanation:'The passage says she discovered "polonium (named after her home country)" — Poland → Polonium!'},
+      {text:'What does "discrimination" mean in this passage?',choices:['A type of award','Unfair treatment because of who you are','Hard work and dedication','Scientific research'],correct:1,explanation:'The passage says she faced "discrimination because she was a woman" — this means she was treated unfairly or blocked from opportunities just because of her gender.'},
+      {text:'What BEST describes Marie Curie\'s character?',choices:['Angry and impatient','Determined and passionate about science','Shy and afraid of challenges','Lucky and talented without effort'],correct:1,explanation:'Marie faced many obstacles but "never gave up" and worked "tirelessly." Her own quote shows she faced challenges with courage. She was determined and passionate!'},
+    ]
+  },
+];
+
+let gamePassages=[];
+let currentPassageIdx=0;
+let score=0;
+let totalCorrect=0;
+let passageScores=[];
+let answered=[];
+
+function shuffle(arr){return [...arr].sort(()=>Math.random()-0.5);}
+
+function initGame(){
+  getAudio(); // lazy init on button click
+  gamePassages=shuffle(passages).slice(0,3);
+  currentPassageIdx=0;score=0;totalCorrect=0;passageScores=[];
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('top-bar').style.display='flex';
+  document.getElementById('passage-progress').style.display='flex';
+  document.getElementById('reading-phase').style.display='block';
+  updateDots();
+  showPassage();
+}
+
+function updateDots(){
+  for(let i=0;i<3;i++){
+    const d=document.getElementById('dot-'+i);
+    if(i<currentPassageIdx)d.className='p-dot done';
+    else if(i===currentPassageIdx)d.className='p-dot active';
+    else d.className='p-dot';
+  }
+}
+
+function showPassage(){
+  answered=new Array(5).fill(false);
+  const p=gamePassages[currentPassageIdx];
+  document.getElementById('p-num').textContent=currentPassageIdx+1;
+  document.getElementById('passage-tag').textContent=p.tag;
+  document.getElementById('passage-title').textContent=p.title;
+  document.getElementById('passage-box').textContent=p.text;
+  document.getElementById('next-passage-btn').style.display='none';
+  buildQuestions(p);
+  if(timedMode){startTimer();}else{document.getElementById('timer-display').style.display='none';}
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function startTimer(){
+  timerSeconds=180;
+  clearInterval(timerInterval);
+  const td=document.getElementById('timer-display');
+  td.style.display='block';
+  td.classList.remove('warning');
+  updateTimerDisplay();
+  timerInterval=setInterval(()=>{
+    timerSeconds--;
+    updateTimerDisplay();
+    if(timerSeconds<=30)td.classList.add('warning');
+    if(timerSeconds<=0){clearInterval(timerInterval);autoFinishPassage();}
+  },1000);
+}
+
+function updateTimerDisplay(){
+  const m=Math.floor(timerSeconds/60);
+  const s=timerSeconds%60;
+  document.getElementById('timer-val').textContent=m+':'+(s<10?'0':'')+s;
+}
+
+function autoFinishPassage(){
+  // Auto-mark unanswered as wrong
+  const p=gamePassages[currentPassageIdx];
+  p.questions.forEach((_,i)=>{
+    if(!answered[i]){
+      const choices=document.querySelectorAll(`.q-choice[data-qidx="${i}"]`);
+      choices.forEach(c=>{if(parseInt(c.dataset.cidx)===p.questions[i].correct)c.classList.add('correct');});
+      document.querySelector(`.q-explanation[data-qidx="${i}"]`).classList.add('show');
+      answered[i]=true;
+    }
+  });
+  checkAllAnswered();
+}
+
+function buildQuestions(p){
+  const section=document.getElementById('questions-section');
+  section.innerHTML='';
+  p.questions.forEach((q,qi)=>{
+    const block=document.createElement('div');
+    block.className='q-block';
+    block.id='q-block-'+qi;
+    block.innerHTML=`<div class="q-num">Question ${qi+1} of 5 — ${['Main Idea','Detail','Vocabulary','Inference','Author\'s Purpose'][qi]||'Comprehension'}</div>
+    <div class="q-text">${q.text}</div>
+    <div class="q-choices" id="choices-${qi}"></div>
+    <div class="q-explanation" data-qidx="${qi}">${q.explanation}</div>`;
+    const choicesDiv=block.querySelector('#choices-'+qi);
+    q.choices.forEach((ch,ci)=>{
+      const btn=document.createElement('button');
+      btn.className='q-choice';
+      btn.textContent=ch;
+      btn.dataset.qidx=qi;
+      btn.dataset.cidx=ci;
+      btn.addEventListener('click',()=>onAnswer(qi,ci,p));
+      choicesDiv.appendChild(btn);
+    });
+    section.appendChild(block);
+  });
+}
+
+function onAnswer(qi,ci,p){
+  if(answered[qi])return;
+  answered[qi]=true;
+  const isCorrect=(ci===p.questions[qi].correct);
+  const block=document.getElementById('q-block-'+qi);
+  const choices=block.querySelectorAll('.q-choice');
+  choices.forEach(c=>{
+    c.disabled=true;
+    if(parseInt(c.dataset.cidx)===p.questions[qi].correct)c.classList.add('correct');
+    else if(parseInt(c.dataset.cidx)===ci&&!isCorrect)c.classList.add('wrong');
+  });
+  block.querySelector(`.q-explanation[data-qidx="${qi}"]`).classList.add('show');
+  if(isCorrect){
+    playCorrect();
+    block.classList.add('answered-correct');
+    score+=100;totalCorrect++;
+  } else {
+    playWrong();
+    block.classList.add('answered-wrong');
+  }
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('correct-val').textContent=totalCorrect;
+  checkAllAnswered();
+}
+
+function checkAllAnswered(){
+  if(answered.every(Boolean)){
+    clearInterval(timerInterval);
+    const nb=document.getElementById('next-passage-btn');
+    nb.style.display='block';
+    nb.textContent=currentPassageIdx<2?'Next Passage →':'See Final Score 🏆';
+  }
+}
+
+document.getElementById('questions-btn').addEventListener('click',()=>{
+  document.getElementById('questions-section').scrollIntoView({behavior:'smooth'});
+});
+
+document.getElementById('next-passage-btn').addEventListener('click',()=>{
+  passageScores.push(answered.filter(Boolean).length);
+  currentPassageIdx++;
+  updateDots();
+  if(currentPassageIdx>=3){endGame();}else{showPassage();}
+});
+
+function endGame(){
+  clearInterval(timerInterval);
+  document.getElementById('reading-phase').style.display='none';
+  document.getElementById('top-bar').style.display='none';
+  document.getElementById('passage-progress').style.display='none';
+  const pct=Math.round((totalCorrect/15)*100);
+  let badge='😊';
+  if(pct>=90)badge='📚';else if(pct>=75)badge='⭐';else if(pct>=60)badge='👍';
+  document.getElementById('end-badge').textContent=badge;
+  document.getElementById('end-score').innerHTML=`Score: <strong style="color:#ffff00">${score}</strong>/1500<br>Correct: <strong style="color:#66ff66">${totalCorrect}</strong>/15 (${pct}%)<br><small style="color:#ff9999">${pct>=90?'Reading Master!':pct>=75?'Great Comprehension!':pct>=60?'Good Reader!':'Keep Reading!'}</small>`;
+  const detail=document.getElementById('score-detail');
+  detail.innerHTML=passageScores.map((s,i)=>`<div class="score-row"><span>📖 ${gamePassages[i].title}</span><span style="color:${s>=4?'#66ff66':s>=3?'#ffcc66':'#ff6666'}">${s}/5 correct</span></div>`).join('');
+  document.getElementById('end-screen').style.display='block';
+  const saved=localStorage.getItem(HS_KEY)||0;
+  if(score>saved)localStorage.setItem(HS_KEY,score);
+  const name=localStorage.getItem('visitorName');
+  if(name)document.getElementById('lb-name').value=name;
+  loadLeaderboard();
+}
+
+function loadLeaderboard(){
+  db.ref('leaderboard/readingquest').orderByChild('score').limitToLast(10).once('value',snap=>{
+    const entries=[];snap.forEach(c=>entries.push(c.val()));entries.sort((a,b)=>b.score-a.score);
+    const list=document.getElementById('lb-list');
+    if(!entries.length){list.innerHTML='<p style="color:#ff9999;text-align:center">No scores yet!</p>';return;}
+    list.innerHTML='<strong style="color:#ffff00">Top Scores</strong><br>'+entries.map((e,i)=>`<div class="lb-entry"><span>#${i+1} ${e.name}</span><span style="color:#ffff00">${e.score}</span></div>`).join('');
+  });
+}
+
+document.getElementById('start-btn').addEventListener('click',initGame);
+document.getElementById('play-again-btn').addEventListener('click',initGame);
+document.getElementById('lb-submit-btn').addEventListener('click',()=>{
+  const name=document.getElementById('lb-name').value.trim()||'Player';
+  localStorage.setItem('visitorName',name);
+  db.ref('leaderboard/readingquest/'+Date.now()).set({name,score,date:new Date().toLocaleDateString()});
+  document.getElementById('lb-submit-btn').textContent='Submitted! ✅';
+  document.getElementById('lb-submit-btn').disabled=true;
+  setTimeout(loadLeaderboard,800);
+});
+</script>
+</body>
+</html>
