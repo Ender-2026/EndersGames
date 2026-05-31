@@ -191,9 +191,10 @@ function renderBuildings(){
       +'<div class="b-cost">💰 '+fmtNum(cost)+'</div>'
       +'</div>'
       +'<div class="b-owned">'+b.owned+'</div>';
-    if(canAfford){
-      el.addEventListener('click',function(){buyBuilding(b);});
-    }
+    el.addEventListener('click',function(){
+      if(canAfford){buyBuilding(b);}
+      else{var need=getBuildingCost(b)-Math.floor(cookies);showNotif('Need '+fmtNum(need)+' more cookies for '+b.name+'!');}
+    });
     div.appendChild(el);
   });
 }
