@@ -74,6 +74,10 @@ tr:nth-child(3) td{color:#ffccaa}
   <button class="tab-btn" onclick="filterTab('grammarfix',this)">📝 Grammar Fix</button>
   <button class="tab-btn" onclick="filterTab('wordwizard',this)">🧙 Word Wizard</button>
   <button class="tab-btn" onclick="filterTab('readingquest',this)">🔍 Reading Quest</button>
+  <button class="tab-btn" onclick="filterTab('mathquest',this)">⚔️ Math Quest</button>
+  <button class="tab-btn" onclick="filterTab('numberninja',this)">🥷 Number Ninja</button>
+  <button class="tab-btn" onclick="filterTab('spellracer',this)">🏎️ Spell Racer</button>
+  <button class="tab-btn" onclick="filterTab('grammarcannon',this)">🔫 Grammar Cannon</button>
 </div>
 
 <div id="loading">Loading scores...</div>
@@ -108,7 +112,11 @@ var gameLabels = {
   mathblitz:'➕ Math Blitz', fractionfun:'🥧 Fraction Fun',
   spellingbee:'🐝 Spelling Bee', timestables:'✖️ Times Tables',
   grammarfix:'📝 Grammar Fix', wordwizard:'🧙 Word Wizard',
-  readingquest:'🔍 Reading Quest'
+  readingquest:'🔍 Reading Quest',
+  mathquest:'⚔️ Math Quest',
+  numberninja:'🥷 Number Ninja',
+  spellracer:'🏎️ Spell Racer',
+  grammarcannon:'🔫 Grammar Cannon'
 };
 
 var firebase_app = firebase.initializeApp(firebaseConfig);

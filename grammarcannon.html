@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Grammar Cannon - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; touch-action: manipulation; }
+    a#home-btn { position: fixed; top: 8px; left: 10px; color: #ff9999; text-decoration: none; font-size: 13px; z-index: 99; }
+    h1 { font-size: 28px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .screen { width: 100%; max-width: 480px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .hidden { display: none !important; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 12px 28px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.6); }
+    /* Game layout */
+    #game-area { width: 100%; max-width: 480px; position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 12px; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 15px; font-weight: bold; color: #ffcc00; }
+    #instruction { font-size: 13px; color: #ff9999; text-align: center; }
+    #sentences-area { width: 100%; display: flex; gap: 10px; min-height: 120px; align-items: stretch; }
+    .sentence-card { flex: 1; background: #220000; border: 2px solid #ff6666; border-radius: 12px; padding: 14px 10px; font-size: 15px; line-height: 1.5; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; -webkit-tap-highlight-color: transparent; transition: all 0.15s; position: relative; min-height: 100px; }
+    .sentence-card:active { filter: brightness(1.4); transform: scale(0.97); }
+    .sentence-card.explode { pointer-events: none; }
+    .sentence-card.correct-flash { border-color: #00ff00; background: #003300; }
+    .sentence-card.wrong-flash { border-color: #ff0000; background: #440000; }
+    .boom-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 52px; background: rgba(0,0,0,0.6); border-radius: 10px; }
+    #feedback { font-size: 22px; font-weight: bold; text-align: center; min-height: 30px; }
+    #progress-bar-wrap { width: 100%; height: 10px; background: #3a0000; border-radius: 5px; overflow: hidden; border: 1px solid #ff6666; }
+    #progress-bar { height: 100%; background: linear-gradient(90deg,#cc0000,#ff6600); border-radius: 5px; transition: width 0.3s; }
+    #cannon-area { font-size: 40px; text-align: center; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 7px 0; }
+    .stat-label { color: #ffcccc; }
+    .stat-val { color: yellow; font-weight: bold; }
+    #lb-list { width: 100%; max-height: 150px; overflow-y: auto; margin-top: 6px; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    #rule-badge { font-size: 12px; color: #ffaa44; text-align: center; padding: 4px 10px; border: 1px solid #ff6666; border-radius: 20px; background: #2a0000; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn">&#x1F3E0; Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen" class="screen">
+  <h1>&#x1F52B; Grammar Cannon</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:15px;">Two sentences appear — one is WRONG!<br>Blast the grammatically INCORRECT sentence!</p>
+  <div style="font-size:48px;text-align:center;">&#x1F52B;&#x1F4A5;&#x1F31F;</div>
+  <div style="color:#ffaaaa;font-size:13px;text-align:center;border:1px solid #ff6666;padding:8px 14px;border-radius:8px;max-width:320px;">
+    Covers: subject-verb agreement, apostrophes, their/there/they're, its/it's, and more!
+  </div>
+  <button class="btn" onclick="startGame()">&#x1F52B; Fire Away!</button>
+</div>
+
+<div id="game-screen" class="hidden">
+  <div id="game-area">
+    <div id="hud">
+      <span>&#x2764;&#xFE0F; <span id="lives-display">3</span></span>
+      <span>Round <span id="round-display">1</span>/20</span>
+      <span>Score: <span id="score-display">0</span></span>
+    </div>
+    <div id="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
+    <div id="instruction" style="font-size:14px;color:#ffdd00;font-weight:bold;">&#x1F52B; BLAST THE WRONG SENTENCE!</div>
+    <div id="rule-badge">Rule: Subject-Verb Agreement</div>
+    <div id="cannon-area">&#x1F52B;</div>
+    <div id="sentences-area">
+      <div class="sentence-card" id="card-left" onclick="tapCard(0)"></div>
+      <div class="sentence-card" id="card-right" onclick="tapCard(1)"></div>
+    </div>
+    <div id="feedback"></div>
+  </div>
+</div>
+
+<div id="end-screen" class="screen hidden">
+  <h1>&#x1F52B; Mission Complete!</h1>
+  <div class="stat-row"><span class="stat-label">Correct Blasts</span><span class="stat-val" id="end-correct">0</span></div>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="end-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Best Score</span><span class="stat-val" id="end-best">0</span></div>
+  <div style="width:100%;font-size:14px;color:#ffcccc;margin-top:6px;">&#x1F3C6; Leaderboard</div>
+  <div id="lb-list"></div>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <button class="btn" onclick="startGame()">Play Again</button>
+    <button class="btn" onclick="location.href='index.html'">&#x1F3E0; Home</button>
+  </div>
+</div>
+
+<script>
+const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbApp,db;try{fbApp=firebase.initializeApp(fbConfig,'lb_grammarcannon');db=fbApp.database();}catch(e){}
+
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function playTone(freq,dur,type,vol){type=type||'sine';vol=vol||0.3;try{const ctx=getAudio();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);o.start();o.stop(ctx.currentTime+dur);}catch(e){}}
+function playBlast(){playTone(150,0.05,'square',0.5);setTimeout(function(){playTone(100,0.1,'sawtooth',0.4);},50);}
+function playWrong(){playTone(220,0.3,'sawtooth',0.4);}
+function playSuccess(){[523,659,784].forEach(function(f,i){setTimeout(function(){playTone(f,0.1,'square',0.3);},i*80);});}
+
+// Grammar question bank
+var QUESTIONS=[
+  {rule:'Subject-Verb Agreement',correct:'The dogs run fast.',wrong:'The dogs runs fast.'},
+  {rule:'Subject-Verb Agreement',correct:'She walks to school.',wrong:'She walk to school.'},
+  {rule:'Subject-Verb Agreement',correct:'The children are playing.',wrong:'The children is playing.'},
+  {rule:'Subject-Verb Agreement',correct:'He and I are friends.',wrong:'He and I is friends.'},
+  {rule:'Subject-Verb Agreement',correct:'The team wins every game.',wrong:'The team win every game.'},
+  {rule:"Apostrophes (don't vs dont)",correct:"I don't like spiders.",wrong:"I dont like spiders."},
+  {rule:"Apostrophes (it's vs its)",correct:"It's a beautiful day.",wrong:"Its a beautiful day."},
+  {rule:"Apostrophes (they're vs their)",correct:"They're going to the park.",wrong:"Their going to the park."},
+  {rule:"Apostrophes (you're vs your)",correct:"You're my best friend.",wrong:"Your my best friend."},
+  {rule:"Apostrophes (possession)",correct:"The dog's bone is buried.",wrong:"The dogs bone is buried."},
+  {rule:'Their / There / They\'re',correct:'They\'re eating lunch now.',wrong:'Their eating lunch now.'},
+  {rule:'Their / There / They\'re',correct:'Put the book over there.',wrong:'Put the book over their.'},
+  {rule:'Their / There / They\'re',correct:'I found their lost cat.',wrong:'I found there lost cat.'},
+  {rule:'To / Too / Two',correct:'I want to go too!',wrong:'I want to go to!'},
+  {rule:'To / Too / Two',correct:'She has two brothers.',wrong:'She has too brothers.'},
+  {rule:'Double Negatives',correct:'I don\'t have any cookies.',wrong:'I don\'t have no cookies.'},
+  {rule:'Punctuation',correct:'We went to the store, the park, and home.',wrong:'We went to the store the park and home.'},
+  {rule:'Capitalization',correct:'My name is Sarah.',wrong:'my name is sarah.'},
+  {rule:'Verb Tense',correct:'Yesterday, she walked home.',wrong:'Yesterday, she walks home.'},
+  {rule:'A / An',correct:'I ate an apple.',wrong:'I ate a apple.'}
+];
+
+var round,lives,score,correctBlasts,currentQ,wrongSide;
+
+function startGame(){
+  round=0;lives=3;score=0;correctBlasts=0;
+  document.getElementById('lives-display').textContent=lives;
+  document.getElementById('score-display').textContent=score;
+  document.getElementById('round-display').textContent=1;
+  show('game-screen');
+  loadRound();
+}
+
+function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+function loadRound(){
+  if(round>=20){endGame();return;}
+  var qs=shuffle(QUESTIONS);
+  currentQ=qs[round%qs.length];
+  wrongSide=Math.random()<0.5?0:1;
+  var leftText=wrongSide===0?currentQ.wrong:currentQ.correct;
+  var rightText=wrongSide===1?currentQ.wrong:currentQ.correct;
+  document.getElementById('card-left').innerHTML=leftText;
+  document.getElementById('card-right').innerHTML=rightText;
+  document.getElementById('card-left').className='sentence-card';
+  document.getElementById('card-right').className='sentence-card';
+  document.getElementById('rule-badge').textContent='Rule: '+currentQ.rule;
+  document.getElementById('round-display').textContent=round+1;
+  document.getElementById('feedback').textContent='';
+  document.getElementById('progress-bar').style.width=((round/20)*100)+'%';
+}
+
+function tapCard(side){
+  var leftCard=document.getElementById('card-left');
+  var rightCard=document.getElementById('card-right');
+  leftCard.onclick=null;rightCard.onclick=null;
+  
+  if(side===wrongSide){
+    // correct blast
+    playBlast();
+    correctBlasts++;
+    score+=50;
+    document.getElementById('score-display').textContent=score;
+    var blasted=side===0?leftCard:rightCard;
+    var other=side===0?rightCard:leftCard;
+    blasted.classList.add('explode');
+    blasted.innerHTML+='<div class="boom-overlay">&#x1F4A5;</div>';
+    other.classList.add('correct-flash');
+    document.getElementById('feedback').textContent='💥 BLASTED! +50';
+    document.getElementById('feedback').style.color='#ffff00';
+    document.getElementById('cannon-area').textContent='🎯';
+    setTimeout(function(){document.getElementById('cannon-area').textContent='🔫';},400);
+    round++;
+    setTimeout(function(){
+      leftCard.onclick=function(){tapCard(0);};
+      rightCard.onclick=function(){tapCard(1);};
+      loadRound();
+    },800);
+  }else{
+    // wrong tap — hit the good one
+    playWrong();
+    lives--;
+    document.getElementById('lives-display').textContent=lives;
+    var wrongCard=side===0?leftCard:rightCard;
+    var correctCard=side===0?rightCard:leftCard;
+    wrongCard.classList.add('wrong-flash');
+    correctCard.classList.add('explode');
+    correctCard.innerHTML+='<div class="boom-overlay" style="font-size:30px;color:#ff4444">&#x274C;</div>';
+    document.getElementById('feedback').textContent='❌ That was CORRECT! Blast the wrong one!';
+    document.getElementById('feedback').style.color='#ff4444';
+    document.body.style.background='#330000';
+    setTimeout(function(){document.body.style.background='#1a0000';},250);
+    if(lives<=0){
+      setTimeout(function(){endGame();},800);
+      return;
+    }
+    round++;
+    setTimeout(function(){
+      leftCard.onclick=function(){tapCard(0);};
+      rightCard.onclick=function(){tapCard(1);};
+      loadRound();
+    },1200);
+  }
+}
+
+function endGame(){
+  var best=Math.max(score,parseInt(localStorage.getItem('gc_best')||'0'));
+  localStorage.setItem('gc_best',best);
+  document.getElementById('end-correct').textContent=correctBlasts;
+  document.getElementById('end-score').textContent=score;
+  document.getElementById('end-best').textContent=best;
+  show('end-screen');submitScore(score);loadLeaderboard();
+}
+
+function submitScore(s){if(!db)return;var name=localStorage.getItem('visitorName')||'Player';db.ref('leaderboard/grammarcannon').push({name:name,score:s,ts:Date.now()});}
+function loadLeaderboard(){if(!db)return;db.ref('leaderboard/grammarcannon').orderByChild('score').limitToLast(10).once('value',function(snap){var rows=[];snap.forEach(function(c){rows.push(c.val());});rows.sort(function(a,b){return b.score-a.score;});document.getElementById('lb-list').innerHTML=rows.map(function(r,i){return '<div class="lb-row"><span>'+(i+1)+'. '+r.name+'</span><span style="color:yellow">'+r.score+'</span></div>';}).join('');});}
+function show(id){['start-screen','game-screen','end-screen'].forEach(function(s){document.getElementById(s).classList.add('hidden');});document.getElementById(id).classList.remove('hidden');}
+</script>
+</body>
+</html>

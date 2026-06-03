@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Math Quest - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; touch-action: manipulation; }
+    a#home-btn { position: fixed; top: 8px; left: 10px; color: #ff9999; text-decoration: none; font-size: 13px; z-index: 99; }
+    h1 { font-size: 28px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .screen { width: 100%; max-width: 480px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .hidden { display: none !important; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 12px 32px; font-size: 17px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.6); }
+    .hp-section { width: 100%; }
+    .hp-label { display: flex; justify-content: space-between; font-size: 13px; color: #ffcccc; margin-bottom: 3px; }
+    .hp-bar-bg { width: 100%; height: 18px; background: #3a0000; border-radius: 9px; overflow: hidden; border: 1px solid #ff6666; }
+    .hp-bar-fill { height: 100%; border-radius: 9px; transition: width 0.3s ease; }
+    #monster-hp-fill { background: linear-gradient(90deg, #cc0000, #ff4444); }
+    #player-hp-fill { background: linear-gradient(90deg, #006600, #00cc00); }
+    #monster-area { text-align: center; position: relative; }
+    #monster-emoji { font-size: 80px; line-height: 1; display: block; transition: transform 0.15s; }
+    #monster-name { font-size: 16px; color: #ff9999; font-weight: bold; margin-top: 4px; }
+    #timer-wrap { width: 100%; height: 10px; background: #3a0000; border-radius: 5px; overflow: hidden; border: 1px solid #ff6666; }
+    #timer-bar { height: 100%; background: #ff8800; border-radius: 5px; transition: background 0.5s; }
+    #question-box { font-size: 38px; color: yellow; font-weight: bold; text-align: center; min-height: 56px; display: flex; align-items: center; justify-content: center; }
+    #answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+    .ans-btn { background: #2a0000; border: 2px solid #ff6666; color: white; font-size: 26px; font-weight: bold; border-radius: 12px; padding: 16px 8px; cursor: pointer; transition: background 0.15s, transform 0.1s; -webkit-tap-highlight-color: transparent; min-height: 68px; }
+    .ans-btn:active { transform: scale(0.95); }
+    .ans-btn.correct { background: #004400 !important; border-color: #00ff00 !important; color: #00ff00 !important; }
+    .ans-btn.wrong { background: #440000 !important; border-color: #ff0000 !important; color: #ff4444 !important; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 14px; color: #ffcc00; font-weight: bold; }
+    #feedback { font-size: 24px; font-weight: bold; min-height: 32px; text-align: center; }
+    #combo-display { font-size: 14px; color: #ffaa00; min-height: 20px; text-align: center; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 7px 0; }
+    .stat-label { color: #ffcccc; }
+    .stat-val { color: yellow; font-weight: bold; }
+    #lb-list { width: 100%; max-height: 150px; overflow-y: auto; margin-top: 6px; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    @keyframes shake { 0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)} }
+    @keyframes bounce { 0%,100%{transform:scale(1)}50%{transform:scale(1.15)} }
+    .shake { animation: shake 0.3s ease; }
+    .bounce { animation: bounce 0.3s ease; }
+    canvas#pc { position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn">&#x1F3E0; Home</a>
+<canvas id="pc"></canvas>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen" class="screen">
+  <h1>&#x2694;&#xFE0F; Math Quest</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:15px;">Answer math questions to defeat monsters!<br>Correct = you attack! Wrong = they attack!</p>
+  <div style="font-size:50px;text-align:center;">&#x1F479;&#x1F409;&#x1F9DF;&#x1F47E;&#x1F480;</div>
+  <button class="btn" onclick="startGame()">&#x2694;&#xFE0F; Begin Quest!</button>
+</div>
+
+<div id="game-screen" class="screen hidden">
+  <div class="hp-section">
+    <div class="hp-label"><span id="monster-name-label">Monster</span><span id="monster-hp-text">100 HP</span></div>
+    <div class="hp-bar-bg"><div class="hp-bar-fill" id="monster-hp-fill" style="width:100%"></div></div>
+  </div>
+  <div id="monster-area">
+    <span id="monster-emoji">&#x1F479;</span>
+    <div id="monster-name">Ogre</div>
+  </div>
+  <div id="hud">
+    <span>Level <span id="level-num">1</span></span>
+    <span id="combo-display"></span>
+    <span>Score: <span id="score-display">0</span></span>
+  </div>
+  <div id="timer-wrap"><div id="timer-bar" style="width:100%"></div></div>
+  <div id="question-box">?</div>
+  <div id="answers">
+    <button class="ans-btn" id="ans0" onclick="checkAnswer(0)">A</button>
+    <button class="ans-btn" id="ans1" onclick="checkAnswer(1)">B</button>
+    <button class="ans-btn" id="ans2" onclick="checkAnswer(2)">C</button>
+    <button class="ans-btn" id="ans3" onclick="checkAnswer(3)">D</button>
+  </div>
+  <div id="feedback"></div>
+  <div class="hp-section">
+    <div class="hp-label"><span>&#x1F9D9; You</span><span id="player-hp-text">100 HP</span></div>
+    <div class="hp-bar-bg"><div class="hp-bar-fill" id="player-hp-fill" style="width:100%"></div></div>
+  </div>
+</div>
+
+<div id="end-screen" class="screen hidden">
+  <h1>&#x2694;&#xFE0F; Quest Complete!</h1>
+  <div class="stat-row"><span class="stat-label">Monsters Defeated</span><span class="stat-val" id="end-monsters">0</span></div>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="end-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Best Score</span><span class="stat-val" id="end-best">0</span></div>
+  <div style="width:100%;font-size:14px;color:#ffcccc;margin-top:6px;">&#x1F3C6; Leaderboard</div>
+  <div id="lb-list"></div>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <button class="btn" onclick="startGame()">Play Again</button>
+    <button class="btn" onclick="location.href='index.html'">&#x1F3E0; Home</button>
+  </div>
+</div>
+
+<script>
+const fbConfig = {
+  apiKey: "AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",
+  authDomain: "enders-games.firebaseapp.com",
+  databaseURL: "https://enders-games-default-rtdb.firebaseio.com",
+  projectId: "enders-games"
+};
+let fbApp, db;
+try { fbApp = firebase.initializeApp(fbConfig, 'lb_mathquest'); db = fbApp.database(); } catch(e) {}
+
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function playTone(freq, dur, type, vol) {
+  type = type||'square'; vol = vol||0.3;
+  try {
+    const ctx = getAudio();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+function playCorrect() { playTone(523,0.1); setTimeout(function(){playTone(659,0.15);},80); setTimeout(function(){playTone(784,0.2);},180); }
+function playWrong() { playTone(200,0.3,'sawtooth',0.4); }
+function playVictory() { var freqs=[523,659,784,1047]; freqs.forEach(function(f,i){setTimeout(function(){playTone(f,0.2);},i*100);}); }
+
+const pCanvas = document.getElementById('pc');
+const pCtx = pCanvas.getContext('2d');
+var particles = [];
+function resizePCanvas() { pCanvas.width = window.innerWidth; pCanvas.height = window.innerHeight; }
+window.addEventListener('resize', resizePCanvas);
+resizePCanvas();
+function spawnParticles(x, y, color, count) {
+  count = count||18;
+  for (var i=0;i<count;i++) {
+    var angle = Math.random()*Math.PI*2;
+    var speed = 2+Math.random()*5;
+    particles.push({x:x,y:y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-2,life:1,color:color,size:4+Math.random()*6});
+  }
+}
+function animP() {
+  pCtx.clearRect(0,0,pCanvas.width,pCanvas.height);
+  particles = particles.filter(function(p){return p.life>0;});
+  for (var i=0;i<particles.length;i++) {
+    var p = particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life-=0.025;
+    pCtx.globalAlpha = p.life;
+    pCtx.fillStyle = p.color;
+    pCtx.beginPath();
+    pCtx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    pCtx.fill();
+  }
+  pCtx.globalAlpha = 1;
+  requestAnimationFrame(animP);
+}
+animP();
+
+var MONSTERS = [
+  {emoji:'\u{1F479}', name:'Ogre', color:'#ff8844'},
+  {emoji:'\u{1F409}', name:'Dragon', color:'#ff4400'},
+  {emoji:'\u{1F9DF}', name:'Zombie', color:'#44ff44'},
+  {emoji:'\u{1F47E}', name:'Alien', color:'#aa44ff'},
+  {emoji:'\u{1F480}', name:'Skull King', color:'#ff44ff'}
+];
+var playerHP, monsterHP, score, level, combo, monstersDefeated, correctIdx, timerInterval, timerVal, locked, currentMonsterIdx, correctAnswer;
+
+function r(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function getQuestion(lvl) {
+  var a,b,op,ans;
+  if (lvl<=2) {
+    op = r(0,1)?'+':'-'; a=r(1,15); b=r(1,15);
+    if(op==='-'&&a<b){var t=a;a=b;b=t;}
+    ans=op==='+'?a+b:a-b;
+  } else if (lvl<=5) {
+    var ops=['+','-','x']; op=ops[r(0,2)]; a=r(2,12); b=r(2,12);
+    if(op==='-'&&a<b){var t=a;a=b;b=t;}
+    ans=op==='+'?a+b:op==='-'?a-b:a*b;
+  } else {
+    var ops2=['+','-','x','/÷']; op=ops2[r(0,3)];
+    if(op==='/÷'){b=r(2,10);a=b*r(2,10);ans=a/b;}
+    else{a=r(2,20);b=r(2,20);if(op==='-'&&a<b){var t=a;a=b;b=t;}ans=op==='+'?a+b:op==='-'?a-b:a*b;}
+  }
+  var opSym = op==='+' ? '+' : op==='-' ? '−' : op==='x' ? '×' : '÷';
+  if(op==='x') opSym='×';
+  if(op==='/÷') opSym='÷';
+  return {text:a+' '+opSym+' '+b+' = ?', answer:ans};
+}
+function shuffle(arr){for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
+function makeChoices(correct){
+  var w=new Set();
+  while(w.size<3){var d=r(1,10);var c=Math.random()<0.5?correct+d:correct-d;if(c!==correct&&!w.has(c))w.add(c);}
+  return shuffle([correct].concat(Array.from(w)));
+}
+function startGame(){
+  playerHP=100;monsterHP=100;score=0;level=1;combo=0;monstersDefeated=0;currentMonsterIdx=0;locked=false;
+  show('game-screen');updateMonster();updateHPBars();nextQuestion();
+}
+function updateMonster(){
+  var m=MONSTERS[currentMonsterIdx%MONSTERS.length];
+  document.getElementById('monster-emoji').textContent=m.emoji;
+  document.getElementById('monster-name').textContent=m.name;
+  document.getElementById('monster-name-label').textContent=m.emoji+' '+m.name;
+}
+function updateHPBars(){
+  document.getElementById('monster-hp-fill').style.width=Math.max(0,monsterHP)+'%';
+  document.getElementById('player-hp-fill').style.width=Math.max(0,playerHP)+'%';
+  document.getElementById('monster-hp-text').textContent=Math.max(0,monsterHP)+' HP';
+  document.getElementById('player-hp-text').textContent=Math.max(0,playerHP)+' HP';
+}
+function nextQuestion(){
+  if(locked)return;
+  locked=false;
+  document.querySelectorAll('.ans-btn').forEach(function(b){b.className='ans-btn';b.disabled=false;});
+  document.getElementById('feedback').textContent='';
+  var q=getQuestion(level);
+  correctAnswer=q.answer;
+  document.getElementById('question-box').textContent=q.text;
+  var choices=makeChoices(q.answer);
+  correctIdx=choices.indexOf(q.answer);
+  choices.forEach(function(c,i){document.getElementById('ans'+i).textContent=c;});
+  document.getElementById('level-num').textContent=level;
+  document.getElementById('score-display').textContent=score;
+  startTimer();
+}
+function startTimer(){
+  clearInterval(timerInterval);
+  timerVal=8;
+  var bar=document.getElementById('timer-bar');
+  bar.style.width='100%';bar.style.background='#ff8800';
+  timerInterval=setInterval(function(){
+    timerVal-=0.1;
+    var pct=Math.max(0,timerVal/8*100);
+    bar.style.width=pct+'%';
+    if(pct<30)bar.style.background='#ff2200';
+    if(timerVal<=0){clearInterval(timerInterval);timeOut();}
+  },100);
+}
+function timeOut(){if(locked)return;locked=true;playWrong();combo=0;monsterAttacks();}
+function checkAnswer(idx){
+  if(locked)return;locked=true;clearInterval(timerInterval);
+  var btns=document.querySelectorAll('.ans-btn');
+  btns.forEach(function(b){b.disabled=true;});
+  if(idx===correctIdx){btns[idx].classList.add('correct');playerAttacks();}
+  else{btns[idx].classList.add('wrong');btns[correctIdx].classList.add('correct');combo=0;monsterAttacks();}
+}
+function playerAttacks(){
+  combo++;
+  var dmg=20+Math.floor(Math.random()*16);
+  monsterHP-=dmg;score+=10+combo*5;
+  document.getElementById('score-display').textContent=score;
+  document.getElementById('combo-display').textContent=combo>1?'🔥 x'+combo+' Combo!':'';
+  playCorrect();
+  var mon=document.getElementById('monster-emoji');
+  mon.classList.add('shake');
+  setTimeout(function(){mon.classList.remove('shake');},350);
+  var rect=mon.getBoundingClientRect();
+  spawnParticles(rect.left+rect.width/2,rect.top+rect.height/2,'#ffdd00',20);
+  document.getElementById('feedback').textContent='⚔️ Hit! -'+dmg+' HP!';
+  document.getElementById('feedback').style.color='#ffff00';
+  updateHPBars();
+  setTimeout(function(){if(monsterHP<=0){monsterDefeated();}else{locked=false;nextQuestion();}},700);
+}
+function monsterAttacks(){
+  playerHP-=15;playWrong();
+  document.body.style.background='#330000';
+  setTimeout(function(){document.body.style.background='#1a0000';},250);
+  document.getElementById('feedback').textContent='💥 Monster attacks! -15 HP!';
+  document.getElementById('feedback').style.color='#ff4444';
+  updateHPBars();
+  setTimeout(function(){if(playerHP<=0){gameOver();}else{locked=false;nextQuestion();}},700);
+}
+function monsterDefeated(){
+  monstersDefeated++;score+=monstersDefeated*100+playerHP;level++;currentMonsterIdx++;monsterHP=100;
+  playVictory();
+  document.getElementById('feedback').textContent='🎉 Monster Defeated!';
+  var mon=document.getElementById('monster-emoji');
+  mon.classList.add('bounce');
+  setTimeout(function(){mon.classList.remove('bounce');},350);
+  setTimeout(function(){updateMonster();updateHPBars();locked=false;nextQuestion();},1000);
+}
+function gameOver(){
+  clearInterval(timerInterval);
+  var best=Math.max(score,parseInt(localStorage.getItem('mq_best')||'0'));
+  localStorage.setItem('mq_best',best);
+  document.getElementById('end-monsters').textContent=monstersDefeated;
+  document.getElementById('end-score').textContent=score;
+  document.getElementById('end-best').textContent=best;
+  show('end-screen');submitScore(score);loadLeaderboard();
+}
+function submitScore(s){
+  if(!db)return;
+  var name=localStorage.getItem('visitorName')||'Player';
+  db.ref('leaderboard/mathquest').push({name:name,score:s,ts:Date.now()});
+}
+function loadLeaderboard(){
+  if(!db)return;
+  db.ref('leaderboard/mathquest').orderByChild('score').limitToLast(10).once('value',function(snap){
+    var rows=[];snap.forEach(function(c){rows.push(c.val());});rows.sort(function(a,b){return b.score-a.score;});
+    document.getElementById('lb-list').innerHTML=rows.map(function(r,i){return '<div class="lb-row"><span>'+(i+1)+'. '+r.name+'</span><span style="color:yellow">'+r.score+'</span></div>';}).join('');
+  });
+}
+function show(id){
+  ['start-screen','game-screen','end-screen'].forEach(function(s){document.getElementById(s).classList.add('hidden');});
+  document.getElementById(id).classList.remove('hidden');
+}
+</script>
+</body>
+</html>

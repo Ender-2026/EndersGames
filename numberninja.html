@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Number Ninja - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
+    a#home-btn { position: fixed; top: 8px; left: 10px; color: #ff9999; text-decoration: none; font-size: 13px; z-index: 99; }
+    h1 { font-size: 28px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .screen { width: 100%; max-width: 480px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .hidden { display: none !important; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 12px 28px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.6); }
+    .diff-row { display: flex; gap: 10px; }
+    .diff-btn { background: darkred; color: #ffcccc; border: 2px solid #ff6666; border-radius: 8px; padding: 8px 16px; font-size: 15px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .diff-btn.sel { background: #cc0000; color: yellow; border-color: yellow; }
+    #game-canvas { display: block; touch-action: none; border: 2px solid #ff6666; border-radius: 8px; cursor: crosshair; }
+    #equation-display { font-size: 28px; color: yellow; font-weight: bold; text-align: center; letter-spacing: 2px; min-height: 40px; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 16px; font-weight: bold; color: #ffcc00; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 7px 0; }
+    .stat-label { color: #ffcccc; }
+    .stat-val { color: yellow; font-weight: bold; }
+    #lb-list { width: 100%; max-height: 150px; overflow-y: auto; margin-top: 6px; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn">&#x1F3E0; Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen" class="screen">
+  <h1>&#x1F977; Number Ninja</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:15px;">Slice the bubble with the correct answer!<br>Wrong bubble = lose a life ❤️</p>
+  <div class="diff-row">
+    <button class="diff-btn sel" onclick="selDiff(this,'easy')">Easy</button>
+    <button class="diff-btn" onclick="selDiff(this,'medium')">Medium</button>
+    <button class="diff-btn" onclick="selDiff(this,'hard')">Hard</button>
+  </div>
+  <button class="btn" onclick="startGame()">&#x1F977; Start Slicing!</button>
+</div>
+
+<div id="game-screen" class="hidden" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:8px;">
+  <div id="equation-display">? + ? = ?</div>
+  <div id="hud" style="max-width:480px;width:100%;">
+    <span>&#x2764;&#xFE0F; <span id="lives-display">3</span></span>
+    <span>Score: <span id="score-display">0</span></span>
+    <span>Best: <span id="best-display">0</span></span>
+  </div>
+  <canvas id="game-canvas"></canvas>
+</div>
+
+<div id="end-screen" class="screen hidden">
+  <h1>&#x1F977; Game Over!</h1>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="end-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Best Score</span><span class="stat-val" id="end-best">0</span></div>
+  <div style="width:100%;font-size:14px;color:#ffcccc;margin-top:6px;">&#x1F3C6; Leaderboard</div>
+  <div id="lb-list"></div>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <button class="btn" onclick="startGame()">Play Again</button>
+    <button class="btn" onclick="location.href='index.html'">&#x1F3E0; Home</button>
+  </div>
+</div>
+
+<script>
+const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbApp,db;try{fbApp=firebase.initializeApp(fbConfig,'lb_numberninja');db=fbApp.database();}catch(e){}
+
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function playTone(freq,dur,type,vol){type=type||'sine';vol=vol||0.3;try{const ctx=getAudio();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);o.start();o.stop(ctx.currentTime+dur);}catch(e){}}
+function playSlice(){playTone(880,0.08,'sine',0.5);}
+function playMiss(){playTone(150,0.3,'sawtooth',0.4);}
+
+const canvas=document.getElementById('game-canvas');
+const ctx=canvas.getContext('2d');
+let W=360,H=480;
+canvas.width=W;canvas.height=H;
+
+let diff='easy',lives,score,correctAnswer,bubbles,slashFx,animId,gameRunning,speed;
+
+function selDiff(el,d){
+  document.querySelectorAll('.diff-btn').forEach(function(b){b.classList.remove('sel');});
+  el.classList.add('sel');diff=d;
+}
+
+function getEq(){
+  var a,b,op,ans;
+  function r(mn,mx){return Math.floor(Math.random()*(mx-mn+1))+mn;}
+  if(diff==='easy'){
+    op=r(0,1)?'+':'-';a=r(1,20);b=r(1,20);
+    if(op==='-'&&a<b){var t=a;a=b;b=t;}
+    ans=op==='+'?a+b:a-b;
+    return {text:a+(op==='+'?' + ':' - ')+b+' = ?',ans:ans};
+  }else if(diff==='medium'){
+    var ops=['×','÷'];op=ops[r(0,1)];
+    if(op==='÷'){b=r(2,10);a=b*r(2,10);ans=a/b;}
+    else{a=r(2,10);b=r(2,10);ans=a*b;}
+    return {text:a+' '+op+' '+b+' = ?',ans:ans};
+  }else{
+    var allops=['+','-','×','÷'];op=allops[r(0,3)];
+    if(op==='÷'){b=r(2,12);a=b*r(2,12);ans=a/b;}
+    else{a=r(2,20);b=r(2,20);if(op==='-'&&a<b){var t=a;a=b;b=t;}ans=op==='+'?a+b:op==='-'?a-b:a*b;}
+    return {text:a+' '+op+' '+b+' = ?',ans:ans};
+  }
+}
+function makeWrongs(correct,n){
+  var s=new Set();s.add(correct);
+  while(s.size<n+1){var d=Math.floor(Math.random()*12)+1;s.add(correct+(Math.random()<0.5?d:-d));}
+  var arr=Array.from(s);arr.splice(arr.indexOf(correct),1);
+  return arr.slice(0,n);
+}
+function shuffle(arr){for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
+
+var COLORS=['#ff4444','#ff8844','#44aaff','#aa44ff','#44ff88','#ff44aa','#ffdd00'];
+
+function spawnBubbles(eq){
+  bubbles=[];
+  var wrongs=makeWrongs(eq.ans,4);
+  var vals=shuffle([eq.ans].concat(wrongs));
+  var spacing=W/(vals.length+1);
+  vals.forEach(function(v,i){
+    bubbles.push({x:spacing*(i+1),y:-40-Math.random()*80,r:32,val:v,vy:speed,color:COLORS[i%COLORS.length],slashed:false,slashAlpha:0});
+  });
+}
+
+function newQuestion(){
+  var eq=getEq();
+  correctAnswer=eq.ans;
+  document.getElementById('equation-display').textContent=eq.text;
+  spawnBubbles(eq);
+}
+
+function startGame(){
+  lives=3;score=0;speed=1.2;gameRunning=true;
+  cancelAnimationFrame(animId);
+  slashFx=[];
+  document.getElementById('lives-display').textContent=lives;
+  document.getElementById('score-display').textContent=score;
+  document.getElementById('best-display').textContent=localStorage.getItem('nn_best')||'0';
+  show('game-screen');
+  newQuestion();
+  loop();
+}
+
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  // bg
+  ctx.fillStyle='#110000';ctx.fillRect(0,0,W,H);
+  // grid lines
+  ctx.strokeStyle='#2a0000';ctx.lineWidth=1;
+  for(var x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(var y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  var allGone=true;
+  var missed=false;
+  bubbles.forEach(function(b){
+    if(b.slashed){
+      b.slashAlpha-=0.05;
+      if(b.slashAlpha>0){
+        ctx.globalAlpha=b.slashAlpha;
+        ctx.fillStyle=b.color;
+        ctx.beginPath();ctx.arc(b.x,b.y,b.r*0.5,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=1;
+      }
+      return;
+    }
+    b.y+=b.vy;
+    if(b.y-b.r>H){
+      if(b.val===correctAnswer){missed=true;}
+      b.slashed=true;b.slashAlpha=0;
+      return;
+    }
+    allGone=false;
+    // draw bubble
+    ctx.fillStyle=b.color;
+    ctx.globalAlpha=0.85;
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='white';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='white';ctx.font='bold 18px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(b.val,b.x,b.y);
+    // shine
+    ctx.fillStyle='rgba(255,255,255,0.3)';
+    ctx.beginPath();ctx.ellipse(b.x-8,b.y-10,8,5,0,0,Math.PI*2);ctx.fill();
+  });
+
+  // slash effects
+  slashFx=slashFx.filter(function(s){return s.life>0;});
+  slashFx.forEach(function(s){
+    ctx.globalAlpha=s.life;
+    ctx.strokeStyle='#ffffff';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();
+    s.life-=0.08;
+  });
+  ctx.globalAlpha=1;
+
+  if(missed){
+    lives--;
+    document.getElementById('lives-display').textContent=lives;
+    playMiss();
+    document.getElementById('equation-display').style.color='#ff4444';
+    setTimeout(function(){document.getElementById('equation-display').style.color='yellow';},300);
+    if(lives<=0){gameRunning=false;gameOver();return;}
+    else{newQuestion();}
+  } else if(allGone){
+    newQuestion();
+  }
+
+  if(gameRunning) animId=requestAnimationFrame(loop);
+}
+
+function hitTest(px,py){
+  for(var i=0;i<bubbles.length;i++){
+    var b=bubbles[i];if(b.slashed)continue;
+    var dx=px-b.x,dy=py-b.y;
+    if(dx*dx+dy*dy<b.r*b.r) return i;
+  }
+  return -1;
+}
+function handleTap(px,py){
+  if(!gameRunning)return;
+  var idx=hitTest(px,py);
+  if(idx<0)return;
+  var b=bubbles[idx];
+  slashFx.push({x1:px-20,y1:py+20,x2:px+20,y2:py-20,life:1});
+  b.slashed=true;b.slashAlpha=1;
+  if(b.val===correctAnswer){
+    score+=10;speed=Math.min(speed+0.15,5);
+    document.getElementById('score-display').textContent=score;
+    playSlice();
+    // mark other bubbles slashed too
+    bubbles.forEach(function(bb){bb.slashed=true;bb.slashAlpha=0;});
+    setTimeout(function(){newQuestion();},200);
+  }else{
+    lives--;
+    document.getElementById('lives-display').textContent=lives;
+    playMiss();
+    if(lives<=0){gameRunning=false;gameOver();}
+  }
+}
+
+canvas.addEventListener('click',function(e){
+  var rect=canvas.getBoundingClientRect();
+  var sx=W/rect.width,sy=H/rect.height;
+  handleTap((e.clientX-rect.left)*sx,(e.clientY-rect.top)*sy);
+});
+canvas.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  var sx=W/rect.width,sy=H/rect.height;
+  var t=e.changedTouches[0];
+  handleTap((t.clientX-rect.left)*sx,(t.clientY-rect.top)*sy);
+},{passive:false});
+
+function gameOver(){
+  cancelAnimationFrame(animId);
+  var best=Math.max(score,parseInt(localStorage.getItem('nn_best')||'0'));
+  localStorage.setItem('nn_best',best);
+  document.getElementById('end-score').textContent=score;
+  document.getElementById('end-best').textContent=best;
+  show('end-screen');
+  submitScore(score);loadLeaderboard();
+}
+function submitScore(s){if(!db)return;var name=localStorage.getItem('visitorName')||'Player';db.ref('leaderboard/numberninja').push({name:name,score:s,ts:Date.now()});}
+function loadLeaderboard(){if(!db)return;db.ref('leaderboard/numberninja').orderByChild('score').limitToLast(10).once('value',function(snap){var rows=[];snap.forEach(function(c){rows.push(c.val());});rows.sort(function(a,b){return b.score-a.score;});document.getElementById('lb-list').innerHTML=rows.map(function(r,i){return '<div class="lb-row"><span>'+(i+1)+'. '+r.name+'</span><span style="color:yellow">'+r.score+'</span></div>';}).join('');});}
+function show(id){['start-screen','game-screen','end-screen'].forEach(function(s){var el=document.getElementById(s);if(el){el.classList.add('hidden');el.style.display='none';}});var target=document.getElementById(id);target.classList.remove('hidden');target.style.display=id==='game-screen'?'flex':'flex';}
+
+// responsive canvas
+function resizeCanvas(){
+  var maxW=Math.min(window.innerWidth-16,480);
+  canvas.style.width=maxW+'px';
+  canvas.style.height=(maxW*(H/W))+'px';
+}
+resizeCanvas();
+window.addEventListener('resize',resizeCanvas);
+</script>
+</body>
+</html>

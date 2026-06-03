@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Spell Racer - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; touch-action: manipulation; }
+    a#home-btn { position: fixed; top: 8px; left: 10px; color: #ff9999; text-decoration: none; font-size: 13px; z-index: 99; }
+    h1 { font-size: 28px; color: yellow; margin-bottom: 6px; text-align: center; }
+    .screen { width: 100%; max-width: 480px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .hidden { display: none !important; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 12px 28px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; }
+    .btn:active { filter: brightness(1.6); }
+    /* Race track */
+    #track-wrap { width: 100%; max-width: 460px; height: 60px; background: #2a0000; border: 2px solid #ff6666; border-radius: 30px; position: relative; overflow: hidden; }
+    #track-line { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg,#004400,#00aa00); border-radius: 30px; transition: width 0.4s ease; }
+    #car { position: absolute; top: 50%; transform: translateY(-50%); font-size: 28px; transition: left 0.4s ease; left: 2%; }
+    #finish-flag { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); font-size: 24px; }
+    /* Definition & word info */
+    #word-category { font-size: 13px; color: #ff9999; text-transform: uppercase; letter-spacing: 2px; }
+    #definition { font-size: 16px; color: #ffcccc; text-align: center; min-height: 44px; line-height: 1.4; padding: 0 8px; }
+    #word-blanks { font-size: 30px; color: yellow; letter-spacing: 8px; font-weight: bold; min-height: 44px; text-align: center; }
+    #letter-tiles { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 460px; }
+    .letter-tile { width: 52px; height: 52px; background: #2a0000; border: 2px solid #ff6666; border-radius: 8px; color: white; font-size: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; transition: all 0.12s; text-transform: uppercase; }
+    .letter-tile:active { transform: scale(0.92); filter: brightness(1.5); }
+    .letter-tile.used { opacity: 0.3; pointer-events: none; }
+    .letter-tile.correct { border-color: #00ff00; background: #003300; }
+    .letter-tile.wrong { border-color: #ff0000; background: #330000; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 15px; font-weight: bold; color: #ffcc00; }
+    #progress-text { font-size: 13px; color: #ff9999; }
+    .stat-row { display: flex; justify-content: space-between; width: 100%; font-size: 17px; border-bottom: 1px solid #3a0000; padding: 7px 0; }
+    .stat-label { color: #ffcccc; }
+    .stat-val { color: yellow; font-weight: bold; }
+    #lb-list { width: 100%; max-height: 150px; overflow-y: auto; margin-top: 6px; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    @keyframes shake { 0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)} }
+    .shake { animation: shake 0.3s ease; }
+    #feedback-msg { font-size: 20px; font-weight: bold; min-height: 28px; text-align: center; }
+  </style>
+</head>
+<body>
+<a href="index.html" id="home-btn">&#x1F3E0; Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen" class="screen">
+  <h1>&#x1F3CE;&#xFE0F; Spell Racer</h1>
+  <p style="color:#ffcccc;text-align:center;font-size:15px;">Spell 20 words to race to the finish!<br>Tap letters in the correct order.</p>
+  <div style="font-size:48px;text-align:center;">&#x1F3CE;&#xFE0F;&#x1F3C1;</div>
+  <button class="btn" onclick="startGame()">&#x1F3CE;&#xFE0F; Rev It Up!</button>
+</div>
+
+<div id="game-screen" class="screen hidden">
+  <div id="hud">
+    <span>Word <span id="word-num">1</span>/20</span>
+    <span id="progress-text">Score: <span id="score-display">0</span></span>
+    <span>&#x2764;&#xFE0F; <span id="mistakes-display">0</span> wrong</span>
+  </div>
+  <div id="track-wrap">
+    <div id="track-line" style="width:2%"></div>
+    <div id="car">&#x1F3CE;&#xFE0F;</div>
+    <div id="finish-flag">&#x1F3C1;</div>
+  </div>
+  <div id="word-category">Category</div>
+  <div id="definition">Loading...</div>
+  <div id="word-blanks">_ _ _ _</div>
+  <div id="feedback-msg"></div>
+  <div id="letter-tiles"></div>
+</div>
+
+<div id="end-screen" class="screen hidden">
+  <h1>&#x1F3C1; Race Complete!</h1>
+  <div class="stat-row"><span class="stat-label">Words Correct</span><span class="stat-val" id="end-correct">0</span></div>
+  <div class="stat-row"><span class="stat-label">Final Score</span><span class="stat-val" id="end-score">0</span></div>
+  <div class="stat-row"><span class="stat-label">Best Score</span><span class="stat-val" id="end-best">0</span></div>
+  <div style="width:100%;font-size:14px;color:#ffcccc;margin-top:6px;">&#x1F3C6; Leaderboard</div>
+  <div id="lb-list"></div>
+  <div style="display:flex;gap:12px;margin-top:8px;">
+    <button class="btn" onclick="startGame()">Race Again</button>
+    <button class="btn" onclick="location.href='index.html'">&#x1F3E0; Home</button>
+  </div>
+</div>
+
+<script>
+const fbConfig={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbApp,db;try{fbApp=firebase.initializeApp(fbConfig,'lb_spellracer');db=fbApp.database();}catch(e){}
+
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function playTone(freq,dur,type,vol){type=type||'sine';vol=vol||0.3;try{const ctx=getAudio();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);o.start();o.stop(ctx.currentTime+dur);}catch(e){}}
+function playClick(){playTone(660,0.07,'square',0.3);}
+function playWrong(){playTone(200,0.2,'sawtooth',0.35);}
+function playWord(){[523,659,784].forEach(function(f,i){setTimeout(function(){playTone(f,0.12,'square',0.3);},i*80);});}
+
+var WORDS=[
+  {word:'TIGER',def:'A large striped wild cat',cat:'Animal'},
+  {word:'EAGLE',def:'A large bird of prey with sharp talons',cat:'Animal'},
+  {word:'SHARK',def:'A large ocean fish with sharp teeth',cat:'Animal'},
+  {word:'PIZZA',def:'A flat bread topped with sauce and cheese',cat:'Food'},
+  {word:'GRAPE',def:'A small round fruit that grows in clusters',cat:'Food'},
+  {word:'BREAD',def:'A baked food made from flour and water',cat:'Food'},
+  {word:'PENCIL',def:'A writing tool with a graphite tip',cat:'School'},
+  {word:'RULER',def:'A straight tool used to measure length',cat:'School'},
+  {word:'GLOBE',def:'A round model of the Earth',cat:'School'},
+  {word:'SOCCER',def:'A sport where you kick a ball into a goal',cat:'Sports'},
+  {word:'TENNIS',def:'A sport played with a racket and a ball',cat:'Sports'},
+  {word:'BASKET',def:'A woven container used in a popular ball sport',cat:'Sports'},
+  {word:'MONKEY',def:'A primate that loves to climb trees',cat:'Animal'},
+  {word:'LEMON',def:'A sour yellow citrus fruit',cat:'Food'},
+  {word:'CHALK',def:'A soft white stick used to write on a board',cat:'School'},
+  {word:'SPRINT',def:'To run very fast for a short distance',cat:'Sports'},
+  {word:'DESERT',def:'A very dry sandy land with little rain',cat:'School'},
+  {word:'MANGO',def:'A sweet tropical fruit with orange flesh',cat:'Food'},
+  {word:'PARROT',def:'A colorful bird that can mimic speech',cat:'Animal'},
+  {word:'TROPHY',def:'A prize given to a winner of a competition',cat:'Sports'}
+];
+
+var wordOrder,wordIdx,currentWord,typed,score,wordsCorrect,mistakes;
+
+function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+function startGame(){
+  wordOrder=shuffle(WORDS);wordIdx=0;score=0;wordsCorrect=0;mistakes=0;typed='';
+  document.getElementById('score-display').textContent=0;
+  document.getElementById('mistakes-display').textContent=0;
+  show('game-screen');
+  loadWord();
+}
+
+function loadWord(){
+  if(wordIdx>=20){endGame();return;}
+  currentWord=wordOrder[wordIdx];typed='';
+  document.getElementById('word-num').textContent=wordIdx+1;
+  document.getElementById('word-category').textContent=currentWord.cat;
+  document.getElementById('definition').textContent=currentWord.def;
+  updateBlanks();
+  renderTiles();
+  document.getElementById('feedback-msg').textContent='';
+  updateTrack();
+}
+
+function updateBlanks(){
+  var w=currentWord.word;
+  var display='';
+  for(var i=0;i<w.length;i++){
+    display+=(i<typed.length?w[i]:'_');
+    if(i<w.length-1) display+=' ';
+  }
+  document.getElementById('word-blanks').textContent=display;
+}
+
+function renderTiles(){
+  var w=currentWord.word;
+  // extra wrong letters
+  var extraPool='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(function(c){return w.indexOf(c)<0;});
+  var extras=shuffle(extraPool).slice(0,Math.floor(w.length*0.8)+1);
+  var allLetters=shuffle(w.split('').concat(extras));
+  var container=document.getElementById('letter-tiles');
+  container.innerHTML='';
+  allLetters.forEach(function(letter){
+    var btn=document.createElement('button');
+    btn.className='letter-tile';
+    btn.textContent=letter;
+    btn.addEventListener('click',function(){tapLetter(letter,btn);});
+    container.appendChild(btn);
+  });
+}
+
+function tapLetter(letter,btn){
+  if(btn.classList.contains('used'))return;
+  var w=currentWord.word;
+  var nextChar=w[typed.length];
+  if(letter===nextChar){
+    playClick();
+    btn.classList.add('used','correct');
+    typed+=letter;
+    updateBlanks();
+    if(typed===w){
+      // word complete
+      playWord();
+      wordsCorrect++;score+=10;
+      document.getElementById('score-display').textContent=score;
+      document.getElementById('feedback-msg').textContent='✅ Correct! +10';
+      document.getElementById('feedback-msg').style.color='#00ff88';
+      wordIdx++;
+      setTimeout(function(){loadWord();},700);
+    }
+  }else{
+    playWrong();
+    mistakes++;
+    document.getElementById('mistakes-display').textContent=mistakes;
+    btn.classList.add('wrong');
+    setTimeout(function(){btn.classList.remove('wrong');},400);
+    var blanks=document.getElementById('word-blanks');
+    blanks.classList.add('shake');
+    setTimeout(function(){blanks.classList.remove('shake');},300);
+    document.getElementById('feedback-msg').textContent='❌ Try again!';
+    document.getElementById('feedback-msg').style.color='#ff4444';
+  }
+}
+
+function updateTrack(){
+  var pct=Math.min(95,(wordIdx/20)*93+2);
+  document.getElementById('track-line').style.width=pct+'%';
+  document.getElementById('car').style.left=Math.max(2,pct-5)+'%';
+}
+
+function endGame(){
+  updateTrack();
+  var best=Math.max(score,parseInt(localStorage.getItem('sr_best')||'0'));
+  localStorage.setItem('sr_best',best);
+  document.getElementById('end-correct').textContent=wordsCorrect;
+  document.getElementById('end-score').textContent=score;
+  document.getElementById('end-best').textContent=best;
+  show('end-screen');submitScore(wordsCorrect);loadLeaderboard();
+}
+
+function submitScore(s){if(!db)return;var name=localStorage.getItem('visitorName')||'Player';db.ref('leaderboard/spellracer').push({name:name,score:s,ts:Date.now()});}
+function loadLeaderboard(){if(!db)return;db.ref('leaderboard/spellracer').orderByChild('score').limitToLast(10).once('value',function(snap){var rows=[];snap.forEach(function(c){rows.push(c.val());});rows.sort(function(a,b){return b.score-a.score;});document.getElementById('lb-list').innerHTML=rows.map(function(r,i){return '<div class="lb-row"><span>'+(i+1)+'. '+r.name+'</span><span style="color:yellow">'+r.score+'</span></div>';}).join('');});}
+function show(id){['start-screen','game-screen','end-screen'].forEach(function(s){document.getElementById(s).classList.add('hidden');});document.getElementById(id).classList.remove('hidden');}
+</script>
+</body>
+</html>
