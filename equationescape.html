@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Equation Escape - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
+    h1 { font-size: 24px; color: yellow; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 16px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 8px; width: 100%; max-width: 480px; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #ffcccc; line-height: 1.7; text-align: left; width: 100%; }
+    #room-banner { width: 100%; border-radius: 12px; padding: 14px; text-align: center; border: 2px solid #ff6666; font-size: 24px; font-weight: bold; }
+    #hud { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 14px; font-weight: bold; color: #ffcc00; padding: 0 4px; }
+    #timer-display { font-size: 18px; color: #ff9966; }
+    #progress-dots { display: flex; gap: 10px; justify-content: center; }
+    .pdot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 2px solid #ff6666; background: #1a0000; transition: all 0.3s; }
+    .pdot.done { background: #004400; border-color: #00cc44; }
+    .pdot.active { border-color: yellow; animation: dpulse 0.8s infinite alternate; }
+    @keyframes dpulse { from{box-shadow:0 0 4px yellow} to{box-shadow:0 0 12px yellow} }
+    #puzzle-card { background: #2a0000; border: 2px solid #ff6666; border-radius: 12px; padding: 16px; width: 100%; }
+    #puzzle-type { font-size: 12px; color: #ffaa44; margin-bottom: 6px; text-align: center; font-weight: bold; letter-spacing: 0.05em; }
+    #puzzle-text { font-size: 18px; color: white; line-height: 1.5; text-align: center; min-height: 52px; }
+    #hint-text { font-size: 13px; color: #ffaa66; text-align: center; min-height: 18px; margin-top: 6px; font-style: italic; }
+    #answer-display { font-size: 28px; color: yellow; text-align: center; letter-spacing: 3px; min-height: 40px; padding: 6px; border-bottom: 2px solid #ff6666; margin: 10px 0 4px; }
+    #numpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+    .nkey { background: #2a0000; border: 2px solid #ff6666; color: white; border-radius: 8px; padding: 14px 8px; font-size: 18px; font-weight: bold; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: filter 0.1s, background 0.1s; }
+    .nkey:active { filter: brightness(1.6); }
+    .nkey.op { color: #ffcc00; }
+    .nkey.clr { color: #ff9999; }
+    .nkey.ok { background: #004400; border-color: #00cc44; color: #88ff88; font-size: 16px; }
+    #feedback { font-size: 18px; font-weight: bold; text-align: center; min-height: 28px; color: #ffcc00; margin-top: 4px; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 150px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #3a0000; }
+    .stat-row:last-child { border-bottom: none; }
+    #key-icon { font-size: 40px; text-align: center; min-height: 48px; }
+    #room-nav { display: flex; gap: 8px; width: 100%; overflow-x: auto; padding: 4px 0; }
+    .room-chip { flex-shrink: 0; padding: 5px 10px; border-radius: 8px; font-size: 12px; border: 2px solid #ff6666; background: #1a0000; color: #ffcccc; }
+    .room-chip.active { background: #330000; border-color: yellow; color: yellow; font-weight: bold; }
+    .room-chip.done { background: #003300; border-color: #44aa44; color: #88ff88; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:40px"></div>
+  <h1>🔐 Equation Escape</h1>
+  <div style="font-size:50px">🗝️</div>
+  <div class="info-box">
+    🔒 5 rooms to escape — each needs 3 math puzzles solved!<br>
+    ✅ Solve all 3 puzzles → get the key 🗝️ → next room!<br>
+    💡 Hint appears after 2 wrong tries<br>
+    ⏱️ Lower time = higher score (max 1000 pts/room)<br>
+    🏆 Total score = sum of all room scores
+  </div>
+  <button class="btn" onclick="startGame()">🔓 Start Escaping!</button>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list"><div style="color:#ff9999;text-align:center;font-size:13px">Loading...</div></div>
+  </div>
+</div>
+
+<div id="game-area">
+  <div style="height:32px"></div>
+  <h1 style="font-size:18px">🔐 Equation Escape</h1>
+  <div id="room-nav"></div>
+  <div id="room-banner">🏠 Loading...</div>
+  <div id="hud">
+    <span>Puzzle <span id="puz-num">1</span>/3</span>
+    <span id="timer-display">⏱️ 0s</span>
+    <span>🌟 <span id="score-display">0</span></span>
+  </div>
+  <div id="progress-dots">
+    <div class="pdot active" id="dot0">1</div>
+    <div class="pdot" id="dot1">2</div>
+    <div class="pdot" id="dot2">3</div>
+    <div class="pdot" id="dot3">🗝️</div>
+  </div>
+  <div id="puzzle-card">
+    <div id="puzzle-type">FILL IN THE BLANK</div>
+    <div id="puzzle-text">Loading...</div>
+    <div id="hint-text"></div>
+    <div id="answer-display">_</div>
+    <div id="numpad">
+      <button class="nkey" onclick="np('7')">7</button>
+      <button class="nkey" onclick="np('8')">8</button>
+      <button class="nkey" onclick="np('9')">9</button>
+      <button class="nkey clr" onclick="np('C')">C</button>
+      <button class="nkey" onclick="np('4')">4</button>
+      <button class="nkey" onclick="np('5')">5</button>
+      <button class="nkey" onclick="np('6')">6</button>
+      <button class="nkey clr" onclick="np('⌫')">⌫</button>
+      <button class="nkey" onclick="np('1')">1</button>
+      <button class="nkey" onclick="np('2')">2</button>
+      <button class="nkey" onclick="np('3')">3</button>
+      <button class="nkey op" onclick="np('-')">−</button>
+      <button class="nkey" onclick="np('0')">0</button>
+      <button class="nkey op" onclick="np('.')">.</button>
+      <button class="nkey op" onclick="np('-')">±</button>
+      <button class="nkey ok" onclick="submitAnswer()">✅ OK</button>
+    </div>
+  </div>
+  <div id="key-icon"></div>
+  <div id="feedback"></div>
+</div>
+
+<div id="end-screen">
+  <div style="height:40px"></div>
+  <h1>🔐 Equation Escape</h1>
+  <div style="font-size:56px">🏆</div>
+  <div id="end-msg" style="font-size:22px;color:yellow;text-align:center;font-weight:bold"></div>
+  <div style="width:100%;background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:14px" id="final-stats"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame()">🔓 Play Again</button>
+    <a href="index.html" class="btn" style="text-decoration:none">🏠 Home</a>
+  </div>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list-end"></div>
+  </div>
+</div>
+
+<script>
+const ROOMS = [
+  {name:"Addition Alcove", emoji:"➕", bg:"#001a00", border:"#00cc44",
+   puzzles:[
+     {type:"FILL IN THE BLANK",text:"___ + 14 = 27",answer:"13",hint:"27 - 14 = ?"},
+     {type:"FILL IN THE BLANK",text:"25 + ___ = 43",answer:"18",hint:"43 - 25 = ?"},
+     {type:"WORD PROBLEM",text:"Mia has 36 apples. She picks 27 more. How many does she have?",answer:"63",hint:"36 + 27"}
+   ]},
+  {name:"Subtraction Shed", emoji:"➖", bg:"#1a0000", border:"#ff6666",
+   puzzles:[
+     {type:"FILL IN THE BLANK",text:"72 − ___ = 45",answer:"27",hint:"72 - 45 = ?"},
+     {type:"FILL IN THE BLANK",text:"___ − 38 = 24",answer:"62",hint:"24 + 38 = ?"},
+     {type:"WORD PROBLEM",text:"A jar had 90 cookies. 47 were eaten. How many remain?",answer:"43",hint:"90 - 47"}
+   ]},
+  {name:"Multiplication Manor", emoji:"✖️", bg:"#00001a", border:"#6666ff",
+   puzzles:[
+     {type:"FILL IN THE BLANK",text:"8 × ___ = 56",answer:"7",hint:"56 ÷ 8 = ?"},
+     {type:"ORDER OF OPERATIONS",text:"3 × 4 + 6 = ?",answer:"18",hint:"Multiply first, then add"},
+     {type:"WORD PROBLEM",text:"Each box has 9 crayons. There are 7 boxes. Total crayons?",answer:"63",hint:"9 × 7"}
+   ]},
+  {name:"Division Den", emoji:"➗", bg:"#0a001a", border:"#aa66ff",
+   puzzles:[
+     {type:"FILL IN THE BLANK",text:"84 ÷ ___ = 12",answer:"7",hint:"84 ÷ 12 = ?"},
+     {type:"ORDER OF OPERATIONS",text:"(5 + 3) × 4 ÷ 8 = ?",answer:"4",hint:"Brackets first: 8 × 4 ÷ 8"},
+     {type:"WORD PROBLEM",text:"64 students split into equal groups of 8. How many groups?",answer:"8",hint:"64 ÷ 8"}
+   ]},
+  {name:"Mystery Mansion", emoji:"🏚️", bg:"#0a0a00", border:"#ffcc00",
+   puzzles:[
+     {type:"ORDER OF OPERATIONS",text:"2 + 3 × (8 − 5) = ?",answer:"11",hint:"Brackets first: 3×3 = 9, then 2+9"},
+     {type:"FILL IN THE BLANK",text:"___ ÷ 6 + 5 = 13",answer:"48",hint:"13 - 5 = 8, then 8 × 6"},
+     {type:"WORD PROBLEM",text:"A recipe needs 3 cups of flour per batch. If you make 7 batches and use 4 cups already, how many more cups do you need?",answer:"17",hint:"3 × 7 = 21, then 21 - 4"}
+   ]}
+];
+
+let _ac=null;
+function ga(){if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;}
+function beep(f,d,t='sine',v=0.25){try{const a=ga(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function sfxOk(){beep(523,0.08);setTimeout(()=>beep(659,0.08),80);setTimeout(()=>beep(784,0.15),160);}
+function sfxNo(){beep(200,0.25,'sawtooth',0.18);}
+function sfxKey(){[784,1047,1319,1568].forEach((f,i)=>setTimeout(()=>beep(f,0.12),i*80));}
+function sfxWin(){[523,587,659,698,784,880,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.1),i*70));}
+
+const _fbCfg={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let _fbApp;try{_fbApp=firebase.app('lb_equationescape');}catch(e){_fbApp=firebase.initializeApp(_fbCfg,'lb_equationescape');}
+const _db=firebase.database(_fbApp);
+function loadLB(el){_db.ref('leaderboard/equationescape').orderByChild('score').limitToLast(10).once('value').then(snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.sort((a,b)=>b.score-a.score);document.getElementById(el).innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>${i+1}. ${r.name||'?'}</span><span style="color:yellow;font-weight:bold">${r.score}</span></div>`).join(''):'<div style="color:#ff9999;text-align:center;padding:8px">No scores yet!</div>';}).catch(()=>{});}
+function submitScore(s){const name=localStorage.getItem('visitorName')||'Player';_db.ref('leaderboard/equationescape').push({name,score:s,ts:Date.now()}).catch(()=>{});}
+loadLB('lb-list');
+
+let roomIdx, puzzleIdx, score, totalTime, timerInt, answer, wrongTries, roomScores, roomStartTime;
+
+function startGame(){
+  roomIdx=0; puzzleIdx=0; score=0; totalTime=0; roomScores=[];
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  loadRoom();
+}
+
+function loadRoom(){
+  const room=ROOMS[roomIdx];
+  document.getElementById('room-banner').textContent=room.emoji+' '+room.name;
+  document.getElementById('room-banner').style.background=room.bg;
+  document.getElementById('room-banner').style.borderColor=room.border;
+  document.getElementById('key-icon').textContent='';
+  puzzleIdx=0;
+  roomStartTime=Date.now();
+  updateRoomNav();
+  loadPuzzle();
+}
+
+function updateRoomNav(){
+  const nav=document.getElementById('room-nav');
+  nav.innerHTML=ROOMS.map((r,i)=>`<div class="room-chip${i===roomIdx?' active':i<roomIdx?' done':''}">${r.emoji} ${r.name}</div>`).join('');
+}
+
+function loadPuzzle(){
+  wrongTries=0; answer='';
+  const puz=ROOMS[roomIdx].puzzles[puzzleIdx];
+  document.getElementById('puz-num').textContent=puzzleIdx+1;
+  document.getElementById('puzzle-type').textContent=puz.type;
+  document.getElementById('puzzle-text').textContent=puz.text;
+  document.getElementById('hint-text').textContent='';
+  document.getElementById('answer-display').textContent='_';
+  document.getElementById('feedback').textContent='';
+  for(let i=0;i<3;i++){
+    const d=document.getElementById('dot'+i);
+    d.className='pdot'+(i<puzzleIdx?' done':i===puzzleIdx?' active':'');
+  }
+  document.getElementById('dot3').className='pdot';
+  startTimer();
+}
+
+let timerVal=0;
+function startTimer(){
+  clearInterval(timerInt);
+  timerVal=0;
+  document.getElementById('timer-display').textContent='⏱️ 0s';
+  timerInt=setInterval(()=>{
+    timerVal++;
+    document.getElementById('timer-display').textContent='⏱️ '+timerVal+'s';
+    document.getElementById('score-display').textContent=score;
+  },1000);
+}
+
+function np(k){
+  if(k==='C'){answer='';document.getElementById('answer-display').textContent='_';return;}
+  if(k==='⌫'){answer=answer.slice(0,-1);document.getElementById('answer-display').textContent=answer||'_';return;}
+  if(k==='±'){answer=answer.startsWith('-')?answer.slice(1):'-'+answer;document.getElementById('answer-display').textContent=answer||'_';return;}
+  if(answer.length>=8) return;
+  answer+=k;
+  document.getElementById('answer-display').textContent=answer;
+}
+
+function submitAnswer(){
+  const puz=ROOMS[roomIdx].puzzles[puzzleIdx];
+  if(answer===puz.answer){
+    sfxOk();
+    clearInterval(timerInt);
+    totalTime+=timerVal;
+    const pts=Math.max(100,1000-timerVal*8);
+    score+=pts;
+    document.getElementById('feedback').innerHTML=`<span style="color:#88ff88">✅ Correct! +${pts} pts</span>`;
+    // Mark dot done
+    document.getElementById('dot'+puzzleIdx).className='pdot done';
+    document.getElementById('dot'+puzzleIdx).textContent='✅';
+    puzzleIdx++;
+    if(puzzleIdx>=3){
+      // All puzzles done — show key!
+      sfxKey();
+      document.getElementById('dot3').className='pdot done';
+      document.getElementById('dot3').textContent='🗝️';
+      document.getElementById('key-icon').textContent='🗝️';
+      document.getElementById('feedback').innerHTML=`<span style="color:#ffcc00">🗝️ You got the KEY! Room cleared!</span>`;
+      const roomTime=Math.round((Date.now()-roomStartTime)/1000);
+      roomScores.push({room:ROOMS[roomIdx].name,pts:score-roomScores.reduce((a,b)=>a+b.pts,0),time:roomTime});
+      setTimeout(()=>{
+        roomIdx++;
+        if(roomIdx>=ROOMS.length){endGame();}
+        else{loadRoom();}
+      },1800);
+    } else {
+      setTimeout(()=>loadPuzzle(),1100);
+    }
+  } else {
+    sfxNo();
+    wrongTries++;
+    document.getElementById('feedback').innerHTML=`<span style="color:#ff6666">❌ Not quite! Try again.</span>`;
+    if(wrongTries>=2){
+      document.getElementById('hint-text').textContent='💡 Hint: '+puz.hint;
+    }
+    answer='';
+    document.getElementById('answer-display').textContent='_';
+    setTimeout(()=>{document.getElementById('feedback').textContent='';},1200);
+  }
+}
+
+function endGame(){
+  clearInterval(timerInt);
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  const hs=parseInt(localStorage.getItem('hs_equationescape')||'0');
+  const isNew=score>hs;
+  if(isNew)localStorage.setItem('hs_equationescape',score);
+  submitScore(score);
+  sfxWin();
+  document.getElementById('end-msg').textContent='You escaped all 5 rooms! 🎉';
+  document.getElementById('final-stats').innerHTML=`
+    <div class="stat-row"><span style="color:#ffcccc">Total Score</span><span style="color:yellow;font-weight:bold">${score}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Total Time</span><span style="color:yellow">${totalTime}s</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Best Score</span><span style="color:yellow">${isNew?'🆕 ':''}${Math.max(score,hs)}</span></div>
+  `;
+  loadLB('lb-list-end');
+}
+</script>
+</body>
+</html>

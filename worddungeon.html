@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Word Dungeon - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
+    h1 { font-size: 24px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 24px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 20px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 8px; width: 100%; max-width: 500px; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 14px; font-weight: bold; color: #ffcc00; padding: 0 4px; flex-wrap: wrap; gap: 4px; }
+    #dungeon-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; width: 100%; max-width: 340px; }
+    .tile { aspect-ratio: 1; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #220000; background: #0a0000; transition: all 0.2s; }
+    .tile.current { border-color: yellow; background: #330022; animation: tpulse 0.9s infinite alternate; }
+    .tile.visited { background: #1a0a00; border-color: #773300; }
+    .tile.wall { background: #050000; border-color: #0a0000; }
+    @keyframes tpulse { from { box-shadow: 0 0 4px yellow; } to { box-shadow: 0 0 14px yellow; } }
+    #challenge-box { background: #2a0000; border: 2px solid #ff6666; border-radius: 12px; padding: 14px; width: 100%; }
+    #room-label { font-size: 13px; color: #ffaa44; margin-bottom: 8px; text-align: center; font-weight: bold; }
+    #definition-text { font-size: 17px; color: white; line-height: 1.5; text-align: center; margin-bottom: 12px; min-height: 50px; }
+    #choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .choice-btn { background: #1a0000; border: 2px solid #ff6666; color: white; border-radius: 8px; padding: 12px 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; transition: all 0.15s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .choice-btn.correct { background: #003300; border-color: #00cc44; color: #88ff88; }
+    .choice-btn.wrong { background: #330000; border-color: #cc2222; color: #ff8888; animation: shake 0.3s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+    #spell-area { display: none; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+    #spell-prompt { font-size: 14px; color: #ffcc00; text-align: center; }
+    #spell-input { background: #2a0000; border: 2px solid #ff6666; color: white; font-size: 20px; text-align: center; width: 100%; padding: 10px; border-radius: 8px; outline: none; letter-spacing: 3px; }
+    #spell-input:focus { border-color: yellow; }
+    #feedback { font-size: 18px; font-weight: bold; text-align: center; min-height: 28px; color: #ffcc00; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 150px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #ffcccc; line-height: 1.7; text-align: left; width: 100%; }
+    .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #3a0000; }
+    .stat-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:40px"></div>
+  <h1>⚔️ Word Dungeon</h1>
+  <div style="font-size:52px">🧙</div>
+  <div class="info-box">
+    🗺️ Navigate a dungeon of 20 rooms!<br>
+    📖 Answer vocab questions to open doors<br>
+    💎 Treasure rooms: spell the word for +100 bonus!<br>
+    👹 Boss every 5 rooms: worth 200 pts!<br>
+    ❤️ 5 HP — each wrong answer costs 1 HP
+  </div>
+  <button class="btn" onclick="startGame()">⚔️ Enter the Dungeon!</button>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list"><div style="color:#ff9999;text-align:center;font-size:13px">Loading...</div></div>
+  </div>
+</div>
+
+<div id="game-area">
+  <div style="height:32px"></div>
+  <h1 style="font-size:18px">⚔️ Word Dungeon</h1>
+  <div id="hud">
+    <span id="hp-display">❤️❤️❤️❤️❤️</span>
+    <span>Room <span id="room-num">1</span>/20</span>
+    <span>🌟 <span id="score-display">0</span></span>
+  </div>
+  <div id="dungeon-grid"></div>
+  <div id="challenge-box">
+    <div id="room-label">📖 Vocabulary Challenge</div>
+    <div id="definition-text"></div>
+    <div id="choices">
+      <button class="choice-btn" id="c0" onclick="answer(0)"></button>
+      <button class="choice-btn" id="c1" onclick="answer(1)"></button>
+      <button class="choice-btn" id="c2" onclick="answer(2)"></button>
+      <button class="choice-btn" id="c3" onclick="answer(3)"></button>
+    </div>
+    <div id="spell-area">
+      <div id="spell-prompt">💎 Spell the word correctly for +100 bonus points!</div>
+      <input type="text" id="spell-input" placeholder="Type the word..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')submitSpell()">
+      <button class="btn" style="padding:8px 20px;font-size:14px" onclick="submitSpell()">✅ Submit Spelling</button>
+    </div>
+  </div>
+  <div id="feedback"></div>
+</div>
+
+<div id="end-screen">
+  <div style="height:40px"></div>
+  <h1>⚔️ Word Dungeon</h1>
+  <div style="font-size:56px" id="end-emoji">🏆</div>
+  <div id="end-msg" style="font-size:22px;color:yellow;text-align:center;font-weight:bold"></div>
+  <div style="width:100%;background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:14px" id="final-stats"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame()">⚔️ Play Again</button>
+    <a href="index.html" class="btn" style="text-decoration:none">🏠 Home</a>
+  </div>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list-end"></div>
+  </div>
+</div>
+
+<script>
+const VOCAB = [
+  {word:"abundant",def:"Existing in large amounts; more than enough"},
+  {word:"benevolent",def:"Kind and generous; wishing good to others"},
+  {word:"catastrophe",def:"A sudden great disaster or serious misfortune"},
+  {word:"deduce",def:"To reach a conclusion by reasoning from clues"},
+  {word:"eloquent",def:"Fluent and persuasive in speech or writing"},
+  {word:"fervent",def:"Having or showing very strong, passionate feelings"},
+  {word:"gregarious",def:"Fond of company; sociable and outgoing"},
+  {word:"hypothesis",def:"A proposed explanation tested through experiment"},
+  {word:"immense",def:"Extremely large or great in size or extent"},
+  {word:"jubilant",def:"Feeling or expressing great happiness and triumph"},
+  {word:"kinetic",def:"Relating to or produced by motion"},
+  {word:"luminous",def:"Emitting or reflecting light; glowing brightly"},
+  {word:"meticulous",def:"Very careful and precise; paying close attention to detail"},
+  {word:"nocturnal",def:"Active at night; relating to the nighttime"},
+  {word:"obsolete",def:"No longer used or needed; out of date"},
+  {word:"persevere",def:"To continue in spite of difficulty or obstacles"},
+  {word:"quandary",def:"A state of puzzlement or uncertainty; a dilemma"},
+  {word:"resilient",def:"Able to recover quickly from difficulties; tough"},
+  {word:"synonymous",def:"Having the same or very similar meaning as another word"},
+  {word:"tenacious",def:"Holding on firmly; very persistent and determined"}
+];
+const BOSS_VOCAB = [
+  {word:"metamorphosis",def:"A complete transformation in form, appearance, or character"},
+  {word:"phenomenon",def:"A remarkable fact or event that can be observed"},
+  {word:"sophisticated",def:"Highly developed, complex, and showing worldly knowledge"},
+  {word:"revolutionary",def:"Causing or involving a dramatic and complete change"}
+];
+
+// Audio
+let _audioCtx = null;
+function getAudio() { if (!_audioCtx) _audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return _audioCtx; }
+function beep(freq,dur,type='sine',vol=0.25) {
+  try { const a=getAudio(),o=a.createOscillator(),g=a.createGain(); o.connect(g); g.connect(a.destination);
+    o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+function sfxCorrect() { beep(523,0.1); setTimeout(()=>beep(659,0.1),100); setTimeout(()=>beep(784,0.18),200); }
+function sfxWrong()   { beep(180,0.3,'sawtooth',0.2); }
+function sfxLevel()   { [523,587,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.12),i*70)); }
+function sfxTreasure(){ [784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.15),i*90)); }
+
+// Firebase
+const _fbCfg = {apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let _fbApp; try{_fbApp=firebase.app('lb_worddungeon');}catch(e){_fbApp=firebase.initializeApp(_fbCfg,'lb_worddungeon');}
+const _db = firebase.database(_fbApp);
+
+function loadLB(elId) {
+  _db.ref('leaderboard/worddungeon').orderByChild('score').limitToLast(10).once('value').then(snap=>{
+    const rows=[]; snap.forEach(c=>rows.push(c.val())); rows.sort((a,b)=>b.score-a.score);
+    const el=document.getElementById(elId);
+    el.innerHTML = rows.length ? rows.map((r,i)=>`<div class="lb-row"><span>${i+1}. ${r.name||'?'}</span><span style="color:yellow;font-weight:bold">${r.score}</span></div>`).join('') : '<div style="color:#ff9999;text-align:center;padding:8px">No scores yet — be first!</div>';
+  }).catch(()=>{ try{document.getElementById(elId).innerHTML='<div style="color:#ff9999;text-align:center">—</div>';}catch(e){} });
+}
+function submitScore(score) {
+  const name = localStorage.getItem('visitorName')||'Player';
+  _db.ref('leaderboard/worddungeon').push({name,score,ts:Date.now()}).catch(()=>{});
+}
+loadLB('lb-list');
+
+// Game vars
+let hp, score, roomIdx, path, currentWord, correctIdx, phase, bossCount, answeredLock;
+const GRID_W=7, GRID_H=7, TOTAL_ROOMS=20;
+function rnd(n){return Math.floor(Math.random()*n);}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function buildPath(){
+  // Build a snake-like path through 7x7 grid
+  const cells=[];
+  const used=new Set();
+  let r=3,c=0;
+  const add=(rr,cc)=>{const k=rr+','+cc; if(rr>=0&&rr<GRID_H&&cc>=0&&cc<GRID_W&&!used.has(k)){cells.push([rr,cc]);used.add(k);return true;}return false;};
+  add(r,c);
+  // snake pattern
+  const moves=[[0,1],[0,1],[0,1],[1,0],[0,1],[0,1],[0,1],[-1,0],[0,1],[0,1],[0,1],[1,0],[0,1],[0,1],[0,1],[-1,0],[0,1],[0,1],[0,1],[1,0]];
+  for(const [dr,dc] of moves){
+    if(cells.length>=TOTAL_ROOMS)break;
+    const nr=r+dr, nc=c+dc;
+    if(add(nr,nc)){r=nr;c=nc;}
+  }
+  // if short, pad by incrementing column
+  while(cells.length<TOTAL_ROOMS){
+    const[lr,lc]=cells[cells.length-1];
+    const nc=(lc+1)%GRID_W, nr=nc===0?Math.min(lr+1,GRID_H-1):lr;
+    if(!add(nr,nc))break;
+  }
+  return cells.slice(0,TOTAL_ROOMS);
+}
+
+function startGame(){
+  hp=5; score=0; roomIdx=0; bossCount=0; phase='answer'; answeredLock=false;
+  path=buildPath();
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  renderMap();
+  loadRoom();
+}
+
+function roomType(i){
+  if(i>0&&(i+1)%5===0) return 'boss';
+  if(i>0&&i%3===0) return 'treasure';
+  return 'normal';
+}
+
+function renderMap(){
+  const g=document.getElementById('dungeon-grid');
+  g.innerHTML='';
+  const onPath=new Map(); path.forEach(([r,c],i)=>onPath.set(r+','+c,i));
+  for(let r=0;r<GRID_H;r++){
+    for(let c=0;c<GRID_W;c++){
+      const div=document.createElement('div');
+      div.className='tile';
+      const key=r+','+c;
+      if(!onPath.has(key)){
+        div.classList.add('wall');
+        div.textContent='';
+      } else {
+        const idx=onPath.get(key);
+        if(idx===roomIdx){ div.classList.add('current'); div.textContent='🧙'; }
+        else if(idx<roomIdx){ div.classList.add('visited'); div.textContent='✓'; div.style.color='#ffaa44'; }
+        else {
+          const rt=roomType(idx);
+          div.textContent= rt==='boss'?'❓': rt==='treasure'?'❓':'❓';
+          div.style.opacity='0.4';
+        }
+      }
+      g.appendChild(div);
+    }
+  }
+}
+
+const usedVocab=[];
+function getWord(isBoss){
+  if(isBoss){const i=bossCount%BOSS_VOCAB.length; bossCount++; return BOSS_VOCAB[i];}
+  if(usedVocab.length>=VOCAB.length) usedVocab.length=0;
+  let idx; do{idx=rnd(VOCAB.length);}while(usedVocab.includes(idx));
+  usedVocab.push(idx);
+  return VOCAB[idx];
+}
+
+function loadRoom(){
+  answeredLock=false;
+  const rt=roomType(roomIdx);
+  const isBoss=rt==='boss', isTreasure=rt==='treasure';
+  currentWord=getWord(isBoss);
+  document.getElementById('room-num').textContent=roomIdx+1;
+  document.getElementById('score-display').textContent=score;
+  updateHP();
+  document.getElementById('room-label').textContent=
+    isBoss?`👹 BOSS ROOM! (${roomIdx+1}/20) — 200 pts!`:
+    isTreasure?`💎 Treasure Room (${roomIdx+1}/20) — Answer + Spell!`:
+    `📖 Vocabulary Challenge — Room ${roomIdx+1}/20`;
+  document.getElementById('definition-text').textContent=currentWord.def;
+  document.getElementById('choices').style.display='grid';
+  document.getElementById('spell-area').style.display='none';
+  document.getElementById('spell-input').value='';
+  document.getElementById('feedback').textContent='';
+  phase='answer';
+  // Build choices
+  const pool=isBoss?BOSS_VOCAB:VOCAB;
+  const others=shuffle(pool.filter(w=>w.word!==currentWord.word)).slice(0,3).map(w=>w.word);
+  const opts=shuffle([currentWord.word,...others]);
+  correctIdx=opts.indexOf(currentWord.word);
+  for(let i=0;i<4;i++){
+    const b=document.getElementById('c'+i);
+    b.textContent=opts[i]; b.className='choice-btn'; b.disabled=false;
+  }
+}
+
+function updateHP(){
+  document.getElementById('hp-display').textContent='❤️'.repeat(hp)+'🖤'.repeat(Math.max(0,5-hp));
+}
+
+function answer(i){
+  if(answeredLock||phase!=='answer') return;
+  if(i===correctIdx){
+    answeredLock=true;
+    document.getElementById('c'+i).classList.add('correct');
+    for(let j=0;j<4;j++) document.getElementById('c'+j).disabled=true;
+    sfxCorrect();
+    const rt=roomType(roomIdx);
+    const pts=rt==='boss'?200:50;
+    score+=pts;
+    document.getElementById('feedback').innerHTML=`<span style="color:#88ff88">✅ Correct! +${pts} pts</span>`;
+    if(rt==='treasure'){
+      phase='spell';
+      setTimeout(()=>{
+        document.getElementById('choices').style.display='none';
+        document.getElementById('spell-area').style.display='flex';
+        document.getElementById('feedback').textContent='';
+        document.getElementById('spell-input').focus();
+      },900);
+    } else {
+      setTimeout(()=>advance(),1200);
+    }
+  } else {
+    document.getElementById('c'+i).classList.add('wrong');
+    document.getElementById('c'+i).disabled=true;
+    hp--; updateHP(); sfxWrong();
+    document.getElementById('feedback').innerHTML=`<span style="color:#ff6666">❌ Wrong! -1 HP</span>`;
+    if(hp<=0){setTimeout(()=>endGame(false),900);return;}
+    setTimeout(()=>{document.getElementById('feedback').textContent='';},1500);
+  }
+}
+
+function submitSpell(){
+  const val=document.getElementById('spell-input').value.trim().toLowerCase();
+  if(!val) return;
+  if(val===currentWord.word.toLowerCase()){
+    sfxTreasure(); score+=100;
+    document.getElementById('feedback').innerHTML=`<span style="color:#ffcc00">💎 Perfect! +100 bonus pts!</span>`;
+    setTimeout(()=>advance(),1300);
+  } else {
+    sfxWrong();
+    document.getElementById('feedback').innerHTML=`<span style="color:#ff9966">❌ The word was: <b>${currentWord.word}</b></span>`;
+    setTimeout(()=>advance(),1800);
+  }
+}
+
+function advance(){
+  if(roomIdx>=TOTAL_ROOMS-1){endGame(true);return;}
+  roomIdx++;
+  renderMap();
+  loadRoom();
+}
+
+function endGame(won){
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  const hs=parseInt(localStorage.getItem('hs_worddungeon')||'0');
+  const isNew=score>hs;
+  if(isNew) localStorage.setItem('hs_worddungeon',score);
+  submitScore(score);
+  if(won) sfxLevel(); else sfxWrong();
+  document.getElementById('end-emoji').textContent=won?'🏆':'💀';
+  document.getElementById('end-msg').textContent=won?'You conquered the dungeon!':'The dungeon claimed you...';
+  document.getElementById('final-stats').innerHTML=`
+    <div class="stat-row"><span style="color:#ffcccc">Final Score</span><span style="color:yellow;font-weight:bold">${score}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Rooms Cleared</span><span style="color:yellow">${roomIdx}/${TOTAL_ROOMS}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">HP Remaining</span><span style="color:yellow">${Math.max(0,hp)}/5</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Best Score</span><span style="color:yellow">${isNew?'🆕 ':''}${Math.max(score,hs)}</span></div>
+  `;
+  loadLB('lb-list-end');
+}
+</script>
+</body>
+</html>

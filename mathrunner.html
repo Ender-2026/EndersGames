@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Math Runner - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow: hidden; }
+    h1 { font-size: 24px; color: yellow; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; z-index: 10; background: rgba(26,0,0,0.97); }
+    #end-screen { display: none; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #ffcccc; line-height: 1.7; text-align: left; width: 100%; max-width: 420px; }
+    canvas { display: block; touch-action: none; }
+    #canvas-wrap { position: relative; width: 100%; }
+    #hud { position: absolute; top: 8px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 12px; pointer-events: none; font-size: 14px; font-weight: bold; color: yellow; text-shadow: 1px 1px 3px black; }
+    #answer-area { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(26,0,0,0.92); border-top: 2px solid #ff6666; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    #equation-display { font-size: 24px; color: #ffcc00; font-weight: bold; text-align: center; min-height: 32px; text-shadow: 1px 1px 3px black; }
+    #choices-row { display: flex; gap: 10px; width: 100%; justify-content: center; }
+    .choice-btn { flex: 1; max-width: 120px; background: #2a0000; border: 2px solid #ff6666; color: white; border-radius: 10px; padding: 14px 8px; font-size: 20px; font-weight: bold; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: all 0.12s; }
+    .choice-btn:active { filter: brightness(1.5); }
+    .choice-btn.correct { background: #004400; border-color: #00cc44; color: #88ff88; }
+    .choice-btn.wrong { background: #330000; border-color: #cc2222; color: #ff8888; animation: shake 0.3s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 33%{transform:translateX(-6px)} 66%{transform:translateX(6px)} }
+    #diff-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .diff-btn { padding: 8px 18px; font-size: 14px; border-radius: 8px; border: 2px solid #ff6666; background: #1a0000; color: #ffcccc; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s; }
+    .diff-btn.sel { background: #550000; border-color: yellow; color: yellow; font-weight: bold; }
+    #lb-list, #lb-list-end { width: 100%; max-width: 400px; max-height: 130px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #3a0000; }
+    .stat-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <h1>🏃 Math Runner</h1>
+  <div style="font-size:50px">🧮</div>
+  <div class="info-box">
+    🏃 Your character runs automatically!<br>
+    🧮 Obstacles have math equations — tap the right answer to JUMP!<br>
+    ❌ Wrong answer = stumble and lose speed!<br>
+    🪙 Collect coins for bonus points!<br>
+    ⚡ Speed increases over time — how far can you go?
+  </div>
+  <div id="diff-btns">
+    <div class="diff-btn sel" onclick="setDiff(this,'easy')">😊 Easy</div>
+    <div class="diff-btn" onclick="setDiff(this,'medium')">😤 Medium</div>
+    <div class="diff-btn" onclick="setDiff(this,'hard')">😈 Hard</div>
+  </div>
+  <button class="btn" onclick="startGame()">🏃 Start Running!</button>
+  <div style="width:100%;max-width:420px">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list"><div style="color:#ff9999;text-align:center;font-size:13px">Loading...</div></div>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="gc"></canvas>
+  <div id="hud">
+    <span>🏃 <span id="dist-display">0m</span></span>
+    <span>🪙 <span id="coin-display">0</span></span>
+    <span>🌟 <span id="score-hud">0</span></span>
+  </div>
+  <div id="answer-area" style="display:none">
+    <div id="equation-display"></div>
+    <div id="choices-row">
+      <button class="choice-btn" id="cb0" onclick="pickAnswer(0)"></button>
+      <button class="choice-btn" id="cb1" onclick="pickAnswer(1)"></button>
+      <button class="choice-btn" id="cb2" onclick="pickAnswer(2)"></button>
+    </div>
+  </div>
+</div>
+
+<div id="end-screen">
+  <h1>🏃 Math Runner</h1>
+  <div style="font-size:52px" id="end-emoji">💀</div>
+  <div id="end-msg" style="font-size:20px;color:yellow;font-weight:bold"></div>
+  <div style="width:100%;max-width:420px;background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:14px" id="final-stats"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame()">🏃 Play Again</button>
+    <a href="index.html" class="btn" style="text-decoration:none">🏠 Home</a>
+  </div>
+  <div style="width:100%;max-width:420px">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list-end"></div>
+  </div>
+</div>
+
+<script>
+let _ac=null;
+function ga(){if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;}
+function beep(f,d,t='sine',v=0.2){try{const a=ga(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function sfxJump(){beep(440,0.05);setTimeout(()=>beep(660,0.08),50);}
+function sfxCoin(){beep(880,0.08);setTimeout(()=>beep(1100,0.08),60);}
+function sfxHit(){beep(150,0.2,'sawtooth',0.2);}
+function sfxCorrect(){beep(523,0.07);setTimeout(()=>beep(784,0.1),70);}
+function sfxWin(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.1),i*70));}
+
+const _fbCfg={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let _fbApp;try{_fbApp=firebase.app('lb_mathrunner');}catch(e){_fbApp=firebase.initializeApp(_fbCfg,'lb_mathrunner');}
+const _db=firebase.database(_fbApp);
+function loadLB(el){_db.ref('leaderboard/mathrunner').orderByChild('score').limitToLast(10).once('value').then(snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.sort((a,b)=>b.score-a.score);document.getElementById(el).innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>${i+1}. ${r.name||'?'}</span><span style="color:yellow;font-weight:bold">${r.score}</span></div>`).join(''):'<div style="color:#ff9999;text-align:center;padding:8px">No scores yet!</div>';}).catch(()=>{});}
+function submitScore(s){const name=localStorage.getItem('visitorName')||'Player';_db.ref('leaderboard/mathrunner').push({name,score:s,ts:Date.now()}).catch(()=>{});}
+loadLB('lb-list');
+
+// Canvas setup
+const canvas=document.getElementById('gc');
+const ctx=canvas.getContext('2d');
+let W,H,GROUND_Y,ANSWER_H;
+
+function resize(){
+  W=Math.min(window.innerWidth,500);
+  H=window.innerHeight;
+  canvas.width=W;
+  canvas.height=H;
+  ANSWER_H=130;
+  GROUND_Y=H-ANSWER_H-80;
+  document.getElementById('canvas-wrap').style.width=W+'px';
+  document.getElementById('canvas-wrap').style.height=H+'px';
+}
+resize();
+window.addEventListener('resize',()=>{resize();});
+
+// Difficulty
+let difficulty='easy';
+function setDiff(btn,d){
+  difficulty=d;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+// Game state
+let running, raf;
+let player, obstacles, coins, particles, bgLayers;
+let speed, distance, coinCount, score, answering;
+let currentObs, correctAns, choices;
+let stumbleTimer=0, flashTimer=0, flashColor='';
+let frameCount=0;
+
+function rnd(n){return Math.floor(Math.random()*n);}
+function rndRange(a,b){return a+Math.random()*(b-a);}
+
+function genEquation(){
+  let a,b,op,ans;
+  if(difficulty==='easy'){
+    op=['+','-'][rnd(2)];
+    a=rnd(20)+1; b=rnd(20)+1;
+    if(op==='-'&&b>a){[a,b]=[b,a];}
+    ans=op==='+'?a+b:a-b;
+  } else if(difficulty==='medium'){
+    op=['+','-','×','÷'][rnd(4)];
+    if(op==='+'||op==='-'){a=rnd(50)+10;b=rnd(30)+5;if(op==='-'&&b>a)[a,b]=[b,a];ans=op==='+'?a+b:a-b;}
+    else if(op==='×'){a=rnd(10)+2;b=rnd(10)+2;ans=a*b;}
+    else{b=rnd(10)+2;ans=rnd(12)+2;a=b*ans;}
+  } else {
+    op=['+','-','×','÷'][rnd(4)];
+    if(op==='+'||op==='-'){a=rnd(200)+50;b=rnd(100)+25;if(op==='-'&&b>a)[a,b]=[b,a];ans=op==='+'?a+b:a-b;}
+    else if(op==='×'){a=rnd(20)+5;b=rnd(15)+3;ans=a*b;}
+    else{b=rnd(12)+3;ans=rnd(20)+5;a=b*ans;}
+  }
+  return {text:`${a} ${op} ${b}`,ans};
+}
+
+function genChoices(correct){
+  const offsets=[-rnd(5)-1, rnd(5)+1, rnd(10)+2];
+  const wrong=[correct+offsets[0],correct+offsets[1],correct+offsets[2]].filter(x=>x!==correct&&x>0);
+  const pool=[correct,...wrong.slice(0,2)];
+  // shuffle
+  for(let i=pool.length-1;i>0;i--){const j=rnd(i+1);[pool[i],pool[j]]=[pool[j],pool[i]];}
+  while(pool.length<3) pool.push(correct+rnd(20)+3);
+  return pool.slice(0,3);
+}
+
+function startGame(){
+  resize();
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('answer-area').style.display='flex';
+  running=true; frameCount=0;
+  speed=4; distance=0; coinCount=0; score=0; answering=false;
+  stumbleTimer=0; flashTimer=0;
+  player={x:W*0.18,y:GROUND_Y,vy:0,w:40,h:50,jumping:false,stumble:0,frame:0};
+  obstacles=[]; coins=[]; particles=[];
+  bgLayers=[
+    {x:0,stars:Array.from({length:20},()=>({x:rnd(W),y:rnd(GROUND_Y*0.6),s:rnd(2)+1}))},
+  ];
+  updateHUD();
+  genObstacle();
+  cancelAnimationFrame(raf);
+  raf=requestAnimationFrame(gameLoop);
+}
+
+let nextObsIn=0;
+function genObstacle(){
+  nextObsIn=Math.round(rndRange(60,120));
+  const eq=genEquation();
+  correctAns=eq.ans;
+  choices=genChoices(correctAns);
+  // Show equation in obstacle, choices in UI
+  const h=64+rnd(20);
+  obstacles.push({x:W+40,y:GROUND_Y-h+player.h,w:44,h,text:eq.text,ans:eq.ans,passed:false,active:true});
+  // Update answer UI
+  document.getElementById('equation-display').textContent='? = '+eq.text;
+  for(let i=0;i<3;i++){
+    const b=document.getElementById('cb'+i);
+    b.textContent=choices[i];
+    b.className='choice-btn';
+    b.disabled=false;
+  }
+  answering=false;
+}
+
+let obsCooldown=0;
+function gameLoop(){
+  if(!running){return;}
+  raf=requestAnimationFrame(gameLoop);
+  frameCount++;
+  // Increase speed
+  if(frameCount%300===0) speed=Math.min(14,speed+0.5);
+  // Update player
+  if(!answering){
+    player.vy+=0.7; // gravity
+    player.y+=player.vy;
+    if(player.y>=GROUND_Y){player.y=GROUND_Y;player.vy=0;player.jumping=false;}
+  }
+  if(player.stumble>0){player.stumble--;if(player.stumble===0)speed=Math.max(4,speed);}
+  // Obstacles
+  if(obsCooldown>0){obsCooldown--;}
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    o.x-=speed;
+    // Check if player should answer (when obstacle is ~2 screen-widths away, show equation)
+    const dist=o.x-(player.x+player.w);
+    if(dist<W*0.5&&!answering&&o.active){
+      answering=true;
+    }
+    // Collision
+    if(o.active&&!o.passed){
+      if(player.x+player.w-6>o.x&&player.x+6<o.x+o.w&&player.y+player.h>o.y&&player.y<o.y+o.h){
+        // Stumble
+        player.stumble=60; speed=Math.max(2,speed-1.5);
+        sfxHit(); flashTimer=20; flashColor='#ff0000';
+        o.active=false; o.passed=true;
+        spawnParticles(o.x+o.w/2,o.y+o.h/2,'#ff4444');
+      }
+    }
+    if(o.x+o.w<0) obstacles.splice(i,1);
+  }
+  // Coins
+  for(let i=coins.length-1;i>=0;i--){
+    const c=coins[i];
+    c.x-=speed;
+    if(!c.collected&&player.x+player.w>c.x&&player.x<c.x+20&&player.y+player.h>c.y&&player.y<c.y+20){
+      c.collected=true; coinCount++; sfxCoin();
+      spawnParticles(c.x+10,c.y+10,'#ffcc00');
+    }
+    if(c.x+20<0) coins.splice(i,1);
+  }
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life--;
+    if(p.life<=0) particles.splice(i,1);
+  }
+  // Spawn obstacles
+  nextObsIn--;
+  if(nextObsIn<=0&&obsCooldown<=0){genObstacle();obsCooldown=40;}
+  // Spawn coins randomly
+  if(rnd(60)===0){coins.push({x:W+20,y:GROUND_Y-rnd(60)-20,collected:false});}
+  distance+=speed*0.05;
+  score=Math.round(distance*10)+coinCount*50;
+  updateHUD();
+  draw();
+}
+
+function updateHUD(){
+  document.getElementById('dist-display').textContent=Math.round(distance)+'m';
+  document.getElementById('coin-display').textContent=coinCount;
+  document.getElementById('score-hud').textContent=score;
+}
+
+// Palette
+const SKY_TOP='#050010', SKY_BOT='#1a0000';
+const GROUND_COL='#2a0000', GROUND_LINE='#550000';
+const RUNNER_BODY='#ffaa44', RUNNER_LEG='#884400';
+const OBS_COL='#550000', OBS_BORDER='#ff6666';
+const COIN_COL='#ffcc00';
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // Sky gradient
+  const grad=ctx.createLinearGradient(0,0,0,GROUND_Y);
+  grad.addColorStop(0,SKY_TOP); grad.addColorStop(1,SKY_BOT);
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,GROUND_Y);
+  // Stars
+  bgLayers[0].stars.forEach(s=>{
+    ctx.fillStyle=`rgba(255,200,200,${0.4+Math.sin(frameCount*0.05+s.x)*0.3})`;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.s,0,Math.PI*2); ctx.fill();
+    s.x-=speed*0.1; if(s.x<0) s.x=W;
+  });
+  // Ground
+  ctx.fillStyle=GROUND_COL; ctx.fillRect(0,GROUND_Y+player.h,W,H-GROUND_Y-player.h);
+  ctx.strokeStyle=GROUND_LINE; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,GROUND_Y+player.h); ctx.lineTo(W,GROUND_Y+player.h); ctx.stroke();
+  // Coins
+  coins.forEach(c=>{
+    if(c.collected) return;
+    ctx.save();
+    ctx.translate(c.x+10,c.y+10);
+    ctx.rotate(frameCount*0.05);
+    ctx.fillStyle=COIN_COL;
+    ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ffee44'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('¢',0,0);
+    ctx.restore();
+  });
+  // Obstacles
+  obstacles.forEach(o=>{
+    if(!o.active) return;
+    ctx.fillStyle=OBS_COL;
+    ctx.strokeStyle=OBS_BORDER; ctx.lineWidth=2;
+    roundRect(ctx,o.x,o.y,o.w,o.h,8);
+    ctx.fill(); ctx.stroke();
+    // Equation text
+    ctx.fillStyle='#ffcc00'; ctx.font=`bold ${o.w>50?13:11}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    wrapText(ctx,o.text,o.x+o.w/2,o.y+o.h/2,o.w-6,14);
+  });
+  // Particles
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life/p.maxLife;
+    ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+  // Player
+  drawPlayer();
+  // Flash overlay
+  if(flashTimer>0){
+    ctx.fillStyle=flashColor;
+    ctx.globalAlpha=flashTimer/20*0.3;
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=1;
+    flashTimer--;
+  }
+}
+
+function drawPlayer(){
+  const x=player.x, y=player.y, w=player.w, h=player.h;
+  const bob=player.jumping?0:Math.sin(frameCount*0.25)*2;
+  const stumbling=player.stumble>0;
+  ctx.save();
+  ctx.translate(x+w/2, y+h+bob);
+  if(stumbling) ctx.rotate(Math.sin(frameCount*0.5)*0.2);
+  // Legs animation
+  const legAng=player.jumping?0:Math.sin(frameCount*0.3)*25;
+  ctx.fillStyle=RUNNER_LEG;
+  // Left leg
+  ctx.save(); ctx.rotate((-legAng)*Math.PI/180);
+  ctx.fillRect(-6,-20,10,22); ctx.restore();
+  // Right leg
+  ctx.save(); ctx.rotate((legAng)*Math.PI/180);
+  ctx.fillRect(-4,-20,10,22); ctx.restore();
+  // Body
+  ctx.fillStyle=RUNNER_BODY;
+  roundRect(ctx,-w/2,-h,w,h*0.7,8); ctx.fill();
+  // Head
+  ctx.fillStyle='#ffcc88';
+  ctx.beginPath(); ctx.arc(0,-h*0.85,h*0.18,0,Math.PI*2); ctx.fill();
+  // Eyes
+  ctx.fillStyle=stumbling?'#ff0000':'#222';
+  ctx.beginPath(); ctx.arc(5,-h*0.87,3,0,Math.PI*2); ctx.fill();
+  // Arms
+  const armAng=player.jumping?-40:Math.sin(frameCount*0.3+Math.PI)*30;
+  ctx.strokeStyle=RUNNER_BODY; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.save(); ctx.rotate(armAng*Math.PI/180);
+  ctx.beginPath(); ctx.moveTo(0,-h*0.5); ctx.lineTo(20,-h*0.2); ctx.stroke();
+  ctx.restore();
+  ctx.save(); ctx.rotate(-armAng*Math.PI/180);
+  ctx.beginPath(); ctx.moveTo(0,-h*0.5); ctx.lineTo(-20,-h*0.2); ctx.stroke();
+  ctx.restore();
+  // Hat
+  ctx.fillStyle='#660000';
+  ctx.fillRect(-10,-h-10,20,8);
+  ctx.fillRect(-6,-h-18,12,10);
+  ctx.restore();
+}
+
+function wrapText(ctx,text,x,y,maxW,lineH){
+  const words=text.split(' '); let line='';
+  const lines=[];
+  for(const w of words){
+    const test=line?line+' '+w:w;
+    if(ctx.measureText(test).width>maxW&&line){lines.push(line);line=w;}
+    else{line=test;}
+  }
+  lines.push(line);
+  const startY=y-(lines.length-1)*lineH/2;
+  lines.forEach((l,i)=>ctx.fillText(l,x,startY+i*lineH));
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+function spawnParticles(x,y,col){
+  for(let i=0;i<8;i++){
+    particles.push({x,y,vx:rndRange(-3,3),vy:rndRange(-5,-1),r:rnd(4)+2,col,life:30,maxLife:30});
+  }
+}
+
+function pickAnswer(i){
+  if(!answering) return;
+  const val=choices[i];
+  const obs=obstacles.find(o=>o.active&&!o.passed);
+  if(!obs) return;
+  if(val===obs.ans){
+    sfxCorrect();
+    document.getElementById('cb'+i).classList.add('correct');
+    for(let j=0;j<3;j++) document.getElementById('cb'+j).disabled=true;
+    // Jump!
+    if(!player.jumping){player.vy=-16;player.jumping=true;sfxJump();}
+    flashTimer=10; flashColor='#00ff00';
+    spawnParticles(player.x+player.w/2,player.y,'#00ff88');
+    obs.passed=true;
+    setTimeout(()=>{
+      for(let j=0;j<3;j++){document.getElementById('cb'+j).className='choice-btn';document.getElementById('cb'+j).disabled=false;}
+      answering=false;
+    },600);
+  } else {
+    sfxHit();
+    document.getElementById('cb'+i).classList.add('wrong');
+    // Stumble
+    player.stumble=40; speed=Math.max(2,speed-1);
+    flashTimer=12; flashColor='#ff0000';
+    setTimeout(()=>{
+      document.getElementById('cb'+i).className='choice-btn';
+      document.getElementById('cb'+i).disabled=false;
+    },600);
+    // Check if obstacle will hit
+    const o=obstacles.find(ob=>ob.active&&!ob.passed);
+    if(o&&o.x-player.x-player.w<60){o.passed=true;} // auto-pass after stumble
+  }
+  // Check game over
+  if(player.stumble>0&&speed<1.5){
+    running=false;
+    setTimeout(()=>endGame(),600);
+  }
+}
+
+// Also allow keyboard space to jump
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!player.jumping&&running){player.vy=-16;player.jumping=true;sfxJump();e.preventDefault();}
+});
+
+function endGame(){
+  running=false;
+  cancelAnimationFrame(raf);
+  document.getElementById('answer-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  const hs=parseInt(localStorage.getItem('hs_mathrunner')||'0');
+  const isNew=score>hs;
+  if(isNew)localStorage.setItem('hs_mathrunner',score);
+  submitScore(score);
+  sfxWin();
+  document.getElementById('end-emoji').textContent='🏃';
+  document.getElementById('end-msg').textContent=`You ran ${Math.round(distance)}m!`;
+  document.getElementById('final-stats').innerHTML=`
+    <div class="stat-row"><span style="color:#ffcccc">Final Score</span><span style="color:yellow;font-weight:bold">${score}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Distance</span><span style="color:yellow">${Math.round(distance)}m</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Coins</span><span style="color:yellow">${coinCount}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Difficulty</span><span style="color:yellow">${difficulty.charAt(0).toUpperCase()+difficulty.slice(1)}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Best Score</span><span style="color:yellow">${isNew?'🆕 ':''}${Math.max(score,hs)}</span></div>
+  `;
+  loadLB('lb-list-end');
+}
+</script>
+</body>
+</html>

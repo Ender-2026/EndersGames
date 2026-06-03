@@ -78,6 +78,10 @@ tr:nth-child(3) td{color:#ffccaa}
   <button class="tab-btn" onclick="filterTab('numberninja',this)">🥷 Number Ninja</button>
   <button class="tab-btn" onclick="filterTab('spellracer',this)">🏎️ Spell Racer</button>
   <button class="tab-btn" onclick="filterTab('grammarcannon',this)">🔫 Grammar Cannon</button>
+  <button class="tab-btn" onclick="filterTab('worddungeon',this)">🗡️ Word Dungeon</button>
+  <button class="tab-btn" onclick="filterTab('equationescape',this)">🗝️ Equation Escape</button>
+  <button class="tab-btn" onclick="filterTab('brainbattle',this)">🤖 Brain Battle</button>
+  <button class="tab-btn" onclick="filterTab('mathrunner',this)">🏃 Math Runner</button>
 </div>
 
 <div id="loading">Loading scores...</div>
@@ -116,7 +120,11 @@ var gameLabels = {
   mathquest:'⚔️ Math Quest',
   numberninja:'🥷 Number Ninja',
   spellracer:'🏎️ Spell Racer',
-  grammarcannon:'🔫 Grammar Cannon'
+  grammarcannon:'🔫 Grammar Cannon',
+  worddungeon:'🗡️ Word Dungeon',
+  equationescape:'🗝️ Equation Escape',
+  brainbattle:'🤖 Brain Battle',
+  mathrunner:'🏃 Math Runner'
 };
 
 var firebase_app = firebase.initializeApp(firebaseConfig);

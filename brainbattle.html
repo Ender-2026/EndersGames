@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Brain Battle - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; }
+    h1 { font-size: 24px; color: yellow; text-align: center; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 16px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 480px; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: #ffcccc; line-height: 1.7; text-align: left; width: 100%; }
+    #scoreboard { display: flex; justify-content: space-between; align-items: center; width: 100%; background: #2a0000; border: 2px solid #ff6666; border-radius: 12px; padding: 10px 14px; }
+    .player-side { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .player-name { font-size: 13px; color: #ffcccc; }
+    .player-score { font-size: 24px; font-weight: bold; color: yellow; }
+    .player-lives { font-size: 18px; letter-spacing: 2px; }
+    #vs-text { font-size: 18px; font-weight: bold; color: #ff6666; }
+    #category-bar { display: flex; gap: 4px; width: 100%; justify-content: center; flex-wrap: wrap; }
+    .cat-tag { font-size: 12px; padding: 3px 10px; border-radius: 12px; border: 1.5px solid #ff6666; color: #ffcccc; background: #1a0000; }
+    .cat-tag.active { background: #330000; border-color: yellow; color: yellow; font-weight: bold; }
+    #q-counter { font-size: 13px; color: #ffaa44; text-align: center; }
+    #timer-bar-wrap { width: 100%; background: #2a0000; border-radius: 8px; height: 12px; border: 1px solid #ff6666; overflow: hidden; }
+    #timer-bar { height: 100%; background: linear-gradient(90deg, #ff0000, #ffcc00); border-radius: 8px; transition: width 0.1s linear; width: 100%; }
+    #question-card { background: #2a0000; border: 2px solid #ff6666; border-radius: 12px; padding: 14px; width: 100%; }
+    #q-text { font-size: 18px; color: white; line-height: 1.5; text-align: center; min-height: 60px; }
+    #answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .ans-btn { background: #1a0000; border: 2px solid #ff6666; color: white; border-radius: 8px; padding: 13px 8px; font-size: 15px; cursor: pointer; text-align: center; transition: all 0.15s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .ans-btn.correct { background: #003300; border-color: #00cc44; color: #88ff88; }
+    .ans-btn.wrong { background: #330000; border-color: #cc2222; color: #ff8888; animation: shake 0.3s; }
+    .ans-btn.hint-remove { opacity: 0.2; pointer-events: none; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 33%{transform:translateX(-6px)} 66%{transform:translateX(6px)} }
+    #robot-msg { font-size: 16px; text-align: center; min-height: 28px; color: #ff9999; }
+    #feedback { font-size: 18px; font-weight: bold; text-align: center; min-height: 28px; color: #ffcc00; }
+    #powerup-bar { display: flex; gap: 8px; justify-content: center; min-height: 42px; align-items: center; }
+    .pu-btn { font-size: 22px; background: #2a0000; border: 2px solid #ff6666; border-radius: 8px; padding: 6px 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: filter 0.1s; }
+    .pu-btn:active { filter: brightness(1.5); }
+    .pu-btn.used { opacity: 0.3; pointer-events: none; }
+    #beat-anim { font-size: 32px; text-align: center; min-height: 40px; }
+    @keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
+    .bouncing { animation: bounce 0.4s ease 3; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 150px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #3a0000; }
+    .stat-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:40px"></div>
+  <h1>🧠 Brain Battle</h1>
+  <div style="font-size:50px">🤖</div>
+  <div class="info-box">
+    ⚔️ Battle a robot 🤖 through 20 trivia questions!<br>
+    📚 Categories: Math, ELA, Science, History<br>
+    ⚡ Answer fast: +100 pts + up to +50 speed bonus<br>
+    🤖 Robot answers after 3–9 seconds — beat it!<br>
+    ❤️ Lose a life when the robot beats you to the answer<br>
+    ⚡ Power-ups: ⏱️ Double Time · 💡 Hint · 🛡️ Shield
+  </div>
+  <button class="btn" onclick="startGame()">🧠 Start Battle!</button>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list"><div style="color:#ff9999;text-align:center;font-size:13px">Loading...</div></div>
+  </div>
+</div>
+
+<div id="game-area">
+  <div style="height:32px"></div>
+  <h1 style="font-size:18px">🧠 Brain Battle</h1>
+  <div id="scoreboard">
+    <div class="player-side">
+      <div class="player-name" id="player-name-display">🧑 You</div>
+      <div class="player-score" id="player-score">0</div>
+      <div class="player-lives" id="player-lives">❤️❤️❤️</div>
+    </div>
+    <div id="vs-text">VS</div>
+    <div class="player-side">
+      <div class="player-name">🤖 Robot</div>
+      <div class="player-score" id="robot-score">0</div>
+      <div style="font-size:28px" id="robot-anim">🤖</div>
+    </div>
+  </div>
+  <div id="q-counter">Question 1 / 20</div>
+  <div id="timer-bar-wrap"><div id="timer-bar"></div></div>
+  <div id="category-bar">
+    <div class="cat-tag" id="cat-math">🔢 Math</div>
+    <div class="cat-tag" id="cat-ela">📚 ELA</div>
+    <div class="cat-tag" id="cat-sci">🔬 Science</div>
+    <div class="cat-tag" id="cat-hist">🏛️ History</div>
+  </div>
+  <div id="question-card">
+    <div id="q-text">Loading...</div>
+    <div id="answer-grid">
+      <button class="ans-btn" id="a0" onclick="answer(0)"></button>
+      <button class="ans-btn" id="a1" onclick="answer(1)"></button>
+      <button class="ans-btn" id="a2" onclick="answer(2)"></button>
+      <button class="ans-btn" id="a3" onclick="answer(3)"></button>
+    </div>
+  </div>
+  <div id="powerup-bar">
+    <button class="pu-btn" id="pu-time" onclick="usePowerup('time')" title="Double Time">⏱️</button>
+    <button class="pu-btn" id="pu-hint" onclick="usePowerup('hint')" title="Remove 2 wrong answers">💡</button>
+    <button class="pu-btn" id="pu-shield" onclick="usePowerup('shield')" title="Shield from robot">🛡️</button>
+  </div>
+  <div id="beat-anim"></div>
+  <div id="robot-msg"></div>
+  <div id="feedback"></div>
+</div>
+
+<div id="end-screen">
+  <div style="height:40px"></div>
+  <h1>🧠 Brain Battle</h1>
+  <div style="font-size:56px" id="end-emoji">🏆</div>
+  <div id="end-msg" style="font-size:22px;color:yellow;font-weight:bold;text-align:center"></div>
+  <div style="width:100%;background:#2a0000;border:2px solid #ff6666;border-radius:12px;padding:14px" id="final-stats"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame()">🧠 Play Again</button>
+    <a href="index.html" class="btn" style="text-decoration:none">🏠 Home</a>
+  </div>
+  <div style="width:100%">
+    <div style="font-size:13px;color:#ffaa44;margin-bottom:6px;text-align:center">🏆 Top Scores</div>
+    <div id="lb-list-end"></div>
+  </div>
+</div>
+
+<script>
+const QUESTIONS = [
+  // Math
+  {cat:'math',q:"What is 7 × 8?",a:["56","54","63","48"],c:0},
+  {cat:'math',q:"What is 144 ÷ 12?",a:["11","12","13","14"],c:1},
+  {cat:'math',q:"What is 15% of 200?",a:["25","30","35","20"],c:1},
+  {cat:'math',q:"Solve: 3x = 27. What is x?",a:["7","8","9","10"],c:2},
+  {cat:'math',q:"What is the area of a rectangle 6cm × 9cm?",a:["48 cm²","54 cm²","60 cm²","45 cm²"],c:1},
+  // ELA
+  {cat:'ela',q:"Which word is a synonym for 'happy'?",a:["Gloomy","Joyful","Tired","Angry"],c:1},
+  {cat:'ela',q:"What is the plural of 'mouse'?",a:["Mouses","Mices","Mice","Mouse"],c:2},
+  {cat:'ela',q:"Which sentence is correct?",a:["Me and him went.","Him and me went.","He and I went.","I and he went."],c:2},
+  {cat:'ela',q:"What does the prefix 'un-' mean?",a:["Again","Before","Not","Together"],c:2},
+  {cat:'ela',q:"What literary device is 'The stars danced'?",a:["Simile","Personification","Metaphor","Alliteration"],c:1},
+  // Science
+  {cat:'sci',q:"What is the chemical symbol for water?",a:["WA","HO","H₂O","OH₂"],c:2},
+  {cat:'sci',q:"How many chambers does a human heart have?",a:["2","3","4","5"],c:2},
+  {cat:'sci',q:"What planet is closest to the Sun?",a:["Venus","Mars","Earth","Mercury"],c:3},
+  {cat:'sci',q:"What type of rock is formed from cooled magma?",a:["Sedimentary","Metamorphic","Igneous","Limestone"],c:2},
+  {cat:'sci',q:"What gas do plants absorb during photosynthesis?",a:["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"],c:2},
+  // History
+  {cat:'hist',q:"In what year did World War II end?",a:["1943","1944","1945","1946"],c:2},
+  {cat:'hist',q:"Who was the first President of the United States?",a:["Lincoln","Jefferson","Adams","Washington"],c:3},
+  {cat:'hist',q:"Which ancient wonder was located at Alexandria?",a:["Colossus","Great Pyramid","The Lighthouse","Temple of Artemis"],c:2},
+  {cat:'hist',q:"The Declaration of Independence was signed in what year?",a:["1774","1775","1776","1777"],c:2},
+  {cat:'hist',q:"What was the name of the ship that sank in 1912?",a:["Lusitania","Olympic","Titanic","Britannic"],c:2}
+];
+
+let _ac=null;
+function ga(){if(!_ac)_ac=new(window.AudioContext||window.webkitAudioContext)();return _ac;}
+function beep(f,d,t='sine',v=0.25){try{const a=ga(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function sfxOk(){beep(523,0.08);setTimeout(()=>beep(784,0.12),80);}
+function sfxNo(){beep(180,0.25,'sawtooth',0.2);}
+function sfxRobot(){beep(300,0.05,'square',0.15);setTimeout(()=>beep(200,0.1,'square',0.15),60);}
+function sfxBeat(){[784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.1),i*60));}
+function sfxWin(){[523,587,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.1),i*70));}
+function sfxPU(){beep(880,0.15);setTimeout(()=>beep(1047,0.12),100);}
+
+const _fbCfg={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let _fbApp;try{_fbApp=firebase.app('lb_brainbattle');}catch(e){_fbApp=firebase.initializeApp(_fbCfg,'lb_brainbattle');}
+const _db=firebase.database(_fbApp);
+function loadLB(el){_db.ref('leaderboard/brainbattle').orderByChild('score').limitToLast(10).once('value').then(snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.sort((a,b)=>b.score-a.score);document.getElementById(el).innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>${i+1}. ${r.name||'?'}</span><span style="color:yellow;font-weight:bold">${r.score}</span></div>`).join(''):'<div style="color:#ff9999;text-align:center;padding:8px">No scores yet!</div>';}).catch(()=>{});}
+function submitScore(s){const name=localStorage.getItem('visitorName')||'Player';_db.ref('leaderboard/brainbattle').push({name,score:s,ts:Date.now()}).catch(()=>{});}
+loadLB('lb-list');
+
+let qList, qIdx, playerScore, robotScore, playerLives, shieldActive;
+let timerInt, timerVal, timerMax, robotTimer;
+let answeredQ, puTimeUsed, puHintUsed, puShieldUsed;
+let correctIdx_g;
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function rnd(n){return Math.floor(Math.random()*n);}
+
+function startGame(){
+  qList=shuffle([...QUESTIONS]);
+  qIdx=0; playerScore=0; robotScore=0; playerLives=3;
+  shieldActive=false; puTimeUsed=false; puHintUsed=false; puShieldUsed=false;
+  document.getElementById('player-name-display').textContent='🧑 '+(localStorage.getItem('visitorName')||'You');
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  document.getElementById('pu-time').classList.remove('used');
+  document.getElementById('pu-hint').classList.remove('used');
+  document.getElementById('pu-shield').classList.remove('used');
+  updateScoreboard();
+  loadQuestion();
+}
+
+function updateScoreboard(){
+  document.getElementById('player-score').textContent=playerScore;
+  document.getElementById('robot-score').textContent=robotScore;
+  document.getElementById('player-lives').textContent='❤️'.repeat(playerLives)+'🖤'.repeat(Math.max(0,3-playerLives));
+}
+
+function catTag(cat){return {math:'🔢 Math',ela:'📚 ELA',sci:'🔬 Science',hist:'🏛️ History'}[cat]||cat;}
+
+function loadQuestion(){
+  if(qIdx>=qList.length){endGame();return;}
+  answeredQ=false;
+  const q=qList[qIdx];
+  document.getElementById('q-counter').textContent=`Question ${qIdx+1} / 20`;
+  document.getElementById('q-text').textContent=q.q;
+  document.getElementById('beat-anim').textContent='';
+  document.getElementById('robot-msg').textContent='';
+  document.getElementById('feedback').textContent='';
+  ['math','ela','sci','hist'].forEach(c=>document.getElementById('cat-'+c).className='cat-tag'+(q.cat===c?' active':''));
+  // Shuffle answers
+  const opts=q.a.map((text,i)=>({text,orig:i}));
+  shuffle(opts);
+  correctIdx_g=opts.findIndex(o=>o.orig===q.c);
+  for(let i=0;i<4;i++){
+    const b=document.getElementById('a'+i);
+    b.textContent=opts[i].text;
+    b.className='ans-btn';
+    b.disabled=false;
+  }
+  // Random powerup appearance (15% chance, not already used)
+  maybeShowPowerup();
+  // Start timer (10 seconds)
+  timerMax=10; timerVal=timerMax;
+  startTimerBar();
+  // Robot delay 3-9s
+  const robotDelay=(3+rnd(7))*1000;
+  clearTimeout(robotTimer);
+  robotTimer=setTimeout(()=>robotAnswer(),robotDelay);
+  // Also: if timer runs out
+}
+
+function startTimerBar(){
+  clearInterval(timerInt);
+  document.getElementById('timer-bar').style.width='100%';
+  const start=Date.now();
+  timerInt=setInterval(()=>{
+    const elapsed=(Date.now()-start)/1000;
+    const pct=Math.max(0,1-elapsed/timerMax);
+    document.getElementById('timer-bar').style.width=(pct*100)+'%';
+    const hue=Math.round(pct*120);
+    document.getElementById('timer-bar').style.background=`hsl(${hue},100%,50%)`;
+    if(pct<=0){
+      clearInterval(timerInt);
+      if(!answeredQ) timeOut();
+    }
+  },50);
+}
+
+function timeOut(){
+  answeredQ=true;
+  clearTimeout(robotTimer);
+  sfxNo();
+  // Robot wins by default
+  robotAnswer(true);
+}
+
+function robotAnswer(forced){
+  if(answeredQ&&!forced) return;
+  clearTimeout(robotTimer);
+  clearInterval(timerInt);
+  if(!answeredQ){
+    answeredQ=true;
+    const robotCorrect=Math.random()>0.35; // 65% robot accuracy
+    robotScore+=robotCorrect?80:0;
+    sfxRobot();
+    document.getElementById('robot-anim').textContent=robotCorrect?'😤':'😅';
+    if(!shieldActive){
+      playerLives--;
+      document.getElementById('robot-msg').textContent=robotCorrect?'🤖 Robot answered first! -1 Life':'🤖 Robot tried but got it wrong!';
+    } else {
+      document.getElementById('robot-msg').textContent='🛡️ Shield blocked the robot!';
+      shieldActive=false;
+    }
+    updateScoreboard();
+    if(playerLives<=0){setTimeout(()=>endGame(),1200);return;}
+    // Show correct answer
+    document.getElementById('a'+correctIdx_g).classList.add('correct');
+    for(let i=0;i<4;i++) document.getElementById('a'+i).disabled=true;
+    setTimeout(()=>{ qIdx++; loadQuestion(); },1500);
+  }
+}
+
+function answer(i){
+  if(answeredQ) return;
+  answeredQ=true;
+  clearTimeout(robotTimer);
+  clearInterval(timerInt);
+  const elapsed=timerMax - parseFloat(document.getElementById('timer-bar').style.width||'100')/100*timerMax;
+  if(i===correctIdx_g){
+    sfxOk();
+    document.getElementById('a'+i).classList.add('correct');
+    for(let j=0;j<4;j++) document.getElementById('a'+j).disabled=true;
+    const speedBonus=Math.round(Math.max(0,50*(1-elapsed/timerMax)));
+    const pts=100+speedBonus;
+    playerScore+=pts;
+    sfxBeat();
+    document.getElementById('beat-anim').textContent='🎉';
+    document.getElementById('beat-anim').classList.add('bouncing');
+    setTimeout(()=>document.getElementById('beat-anim').classList.remove('bouncing'),1200);
+    document.getElementById('feedback').innerHTML=`<span style="color:#88ff88">✅ You beat the robot! +${pts} pts</span>`;
+    document.getElementById('robot-anim').textContent='😩';
+  } else {
+    sfxNo();
+    document.getElementById('a'+i).classList.add('wrong');
+    document.getElementById('a'+correctIdx_g).classList.add('correct');
+    for(let j=0;j<4;j++) document.getElementById('a'+j).disabled=true;
+    document.getElementById('feedback').innerHTML=`<span style="color:#ff6666">❌ Wrong! No points.</span>`;
+  }
+  updateScoreboard();
+  setTimeout(()=>{ qIdx++; loadQuestion(); },1500);
+}
+
+function usePowerup(type){
+  sfxPU();
+  if(type==='time'&&!puTimeUsed){
+    puTimeUsed=true;
+    document.getElementById('pu-time').classList.add('used');
+    timerMax*=2;
+    document.getElementById('feedback').innerHTML=`<span style="color:#ffcc00">⏱️ Time Doubled!</span>`;
+    setTimeout(()=>document.getElementById('feedback').textContent='',1200);
+  } else if(type==='hint'&&!puHintUsed){
+    puHintUsed=true;
+    document.getElementById('pu-hint').classList.add('used');
+    // Remove 2 wrong answers
+    let removed=0;
+    for(let i=0;i<4&&removed<2;i++){
+      if(i!==correctIdx_g&&!document.getElementById('a'+i).classList.contains('hint-remove')){
+        document.getElementById('a'+i).classList.add('hint-remove');
+        removed++;
+      }
+    }
+    document.getElementById('feedback').innerHTML=`<span style="color:#ffcc00">💡 2 wrong answers removed!</span>`;
+    setTimeout(()=>document.getElementById('feedback').textContent='',1200);
+  } else if(type==='shield'&&!puShieldUsed){
+    puShieldUsed=true;
+    document.getElementById('pu-shield').classList.add('used');
+    shieldActive=true;
+    document.getElementById('feedback').innerHTML=`<span style="color:#ffcc00">🛡️ Shield active for this question!</span>`;
+    setTimeout(()=>document.getElementById('feedback').textContent='',1200);
+  }
+}
+
+function maybeShowPowerup(){
+  // Already used powerups are shown as used; nothing to do
+}
+
+function endGame(){
+  clearInterval(timerInt);clearTimeout(robotTimer);
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  const hs=parseInt(localStorage.getItem('hs_brainbattle')||'0');
+  const isNew=playerScore>hs;
+  if(isNew)localStorage.setItem('hs_brainbattle',playerScore);
+  submitScore(playerScore);
+  const won=playerScore>robotScore;
+  if(won)sfxWin();else sfxNo();
+  document.getElementById('end-emoji').textContent=won?'🏆':'🤖';
+  document.getElementById('end-msg').textContent=won?'You defeated the robot!':'The robot wins this time...';
+  document.getElementById('final-stats').innerHTML=`
+    <div class="stat-row"><span style="color:#ffcccc">Your Score</span><span style="color:yellow;font-weight:bold">${playerScore}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Robot Score</span><span style="color:#ff9999">${robotScore}</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Lives Left</span><span style="color:yellow">${Math.max(0,playerLives)}/3</span></div>
+    <div class="stat-row"><span style="color:#ffcccc">Best Score</span><span style="color:yellow">${isNew?'🆕 ':''}${Math.max(playerScore,hs)}</span></div>
+  `;
+  loadLB('lb-list-end');
+}
+</script>
+</body>
+</html>
