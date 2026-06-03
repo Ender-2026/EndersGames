@@ -114,6 +114,7 @@ C.addEventListener('touchstart',function(e){swipeStart={x:e.touches[0].clientX,y
 C.addEventListener('touchend',function(e){
   if(!swipeStart)return;
   var dx=e.changedTouches[0].clientX-swipeStart.x,dy=e.changedTouches[0].clientY-swipeStart.y;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<20){swipeStart=null;return;}
   if(Math.abs(dx)>Math.abs(dy)){nextDir=dx>0?{x:1,y:0}:{x:-1,y:0};}
   else{nextDir=dy>0?{x:0,y:1}:{x:0,y:-1};}
   swipeStart=null;
