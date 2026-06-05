@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ice Hockey</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a0000;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+h1{color:#ffff00;font-size:22px;margin:6px 0 2px;text-shadow:0 0 8px #ff0}
+canvas{border:3px solid #ff6666;border-radius:8px;max-width:100%;display:block;touch-action:none}
+.info-row{display:flex;justify-content:space-between;width:100%;max-width:420px;padding:3px 6px;font-size:15px;color:#ffcc00}
+.hb{position:fixed;top:8px;left:10px;z-index:20}
+.hb a{color:#ffff00;text-decoration:none;border:2px solid #ff6666;padding:4px 10px;border-radius:8px;font-size:13px;background:#1a0000}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:10px}
+#overlay h2{color:#ffff00;font-size:28px;text-align:center}
+#overlay p{color:#fff;font-size:14px;text-align:center;max-width:310px;line-height:1.5}
+.btn{background:#8b0000;color:#ffff00;border:2px solid #ff6666;padding:10px 28px;border-radius:10px;font-size:17px;font-weight:bold;cursor:pointer;margin:4px;touch-action:manipulation;outline:none}
+.btn:active{background:#cc0000;transform:scale(0.95)}
+#goalFlash{position:fixed;top:30%;left:50%;transform:translateX(-50%);font-size:52px;font-weight:bold;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:30;text-shadow:0 0 20px currentColor;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="hb"><a href="index.html">&#127968; Home</a></div>
+<h1>&#127944; Ice Hockey</h1>
+<div class="info-row">
+  <span>YOU: <b id="scoreP" style="color:#00ffff">0</b></span>
+  <span id="statusMsg" style="color:#ffaa00">Best of 7</span>
+  <span>CPU: <b id="scoreC" style="color:#ff6666">0</b></span>
+</div>
+<canvas id="c" width="420" height="560"></canvas>
+<div id="goalFlash"></div>
+<div id="overlay">
+  <h2>&#127944; Ice Hockey</h2>
+  <p>Drag your paddle (bottom) to deflect the puck into the CPU's goal.<br>First to <b>7 goals</b> wins!<br><br>&#128070; Drag on the canvas to move</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="btn" onclick="startGame(1)">&#128034; Easy</button>
+    <button class="btn" onclick="startGame(2)">&#9889; Medium</button>
+    <button class="btn" onclick="startGame(3)">&#128293; Hard</button>
+  </div>
+  <div id="finalMsg" style="display:none;color:#ffff00;font-size:20px;text-align:center;margin-top:6px"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+const FB_CFG={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbDb=null;
+try{let app=firebase.apps.find(a=>a.name==='lb_hockey')||firebase.initializeApp(FB_CFG,'lb_hockey');fbDb=firebase.database(app);}catch(e){}
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=420,H=560;
+let audioCtx=null;
+function getAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return audioCtx;}
+function playTone(f,t,d,v){try{const a=getAudio();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v||0.3,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function playGoal(){playTone(880,'sine',0.2,0.4);setTimeout(()=>playTone(1100,'sine',0.2,0.4),150);setTimeout(()=>playTone(1320,'sine',0.4,0.4),300);}
+function playHit(){playTone(300,'square',0.06,0.3);}
+function playWall(){playTone(200,'square',0.05,0.2);}
+
+const PADDLE_R=32,PUCK_R=12,GOAL_W=120,GOAL_H=18;
+let px=W/2,py=H-60; // player paddle
+let cx_=W/2,cy_=60+PADDLE_R; // cpu paddle
+let bx=W/2,by=H/2,bvx=0,bvy=0;
+let scoreP=0,scoreC=0,diff=1,running=false;
+let cpuSpeed=2,goalCooldown=0;
+let animId=null;
+
+function startGame(d){
+  diff=d;scoreP=0;scoreC=0;
+  const cpuSpeeds=[2.5,4,6];
+  cpuSpeed=cpuSpeeds[d-1];
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('finalMsg').style.display='none';
+  document.getElementById('scoreP').textContent=0;
+  document.getElementById('scoreC').textContent=0;
+  document.getElementById('statusMsg').textContent='Best of 7';
+  running=true;
+  resetPuck(1);
+  if(animId)cancelAnimationFrame(animId);
+  loop();
+}
+
+function resetPuck(dir){
+  bx=W/2;by=H/2;
+  const spd=5+diff;
+  const ang=(Math.random()*0.8+0.1)*Math.PI;
+  bvx=Math.cos(ang)*spd*(Math.random()>0.5?1:-1);
+  bvy=Math.sin(ang)*spd*(dir>0?-1:1);
+  goalCooldown=60;
+}
+
+function checkGoal(){
+  if(goalCooldown>0){goalCooldown--;return;}
+  const gl=(W-GOAL_W)/2,gr=gl+GOAL_W;
+  // Player scores (CPU goal - top)
+  if(by-PUCK_R<GOAL_H&&bx>gl&&bx<gr){
+    scoreP++;goalCooldown=80;
+    document.getElementById('scoreP').textContent=scoreP;
+    showGoalFlash('&#127944; GOAL!','#00ffff');playGoal();
+    resetPuck(-1);checkWin();return;
+  }
+  // CPU scores (player goal - bottom)
+  if(by+PUCK_R>H-GOAL_H&&bx>gl&&bx<gr){
+    scoreC++;goalCooldown=80;
+    document.getElementById('scoreC').textContent=scoreC;
+    showGoalFlash('&#128577; CPU Scores!','#ff6666');playTone(220,'sawtooth',0.4,0.3);
+    resetPuck(1);checkWin();return;
+  }
+}
+
+function checkWin(){
+  if(scoreP>=7||scoreC>=7){
+    running=false;
+    const won=scoreP>=7;
+    const name=localStorage.getItem('visitorName')||'Player';
+    const sc=scoreP*100+Math.max(0,7-scoreC)*10;
+    if(fbDb){try{fbDb.ref('leaderboard/hockey').push({name,score:sc,won,date:Date.now()});}catch(e){}}
+    document.getElementById('finalMsg').innerHTML=(won?'&#127942; YOU WIN! '+scoreP+'-'+scoreC:'&#128577; CPU Wins '+scoreC+'-'+scoreP)+'<br><span style="color:#aaa;font-size:13px">'+name+'</span>';
+    document.getElementById('finalMsg').style.display='block';
+    document.getElementById('overlay').querySelector('h2').textContent=won?'You Win!':'CPU Wins!';
+    document.getElementById('overlay').querySelector('p').textContent='Play again?';
+    document.getElementById('overlay').style.display='flex';
+  }
+}
+
+function showGoalFlash(txt,col){
+  const el=document.getElementById('goalFlash');
+  el.innerHTML=txt;el.style.color=col;el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0,1000);
+}
+
+// Input
+let dragging=false,dragOffX=0;
+function getPos(e){
+  const r=cv.getBoundingClientRect();
+  const scaleX=W/r.width;
+  if(e.touches){return{x:(e.touches[0].clientX-r.left)*scaleX,y:(e.touches[0].clientY-r.top)*(H/r.height)};}
+  return{x:(e.clientX-r.left)*scaleX,y:(e.clientY-r.top)*(H/r.height)};
+}
+cv.addEventListener('pointerdown',e=>{
+  getAudio();
+  const p=getPos(e);
+  const dist=Math.sqrt((p.x-px)**2+(p.y-py)**2);
+  if(dist<PADDLE_R+15){dragging=true;dragOffX=px-p.x;cv.setPointerCapture(e.pointerId);}
+});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const p=getPos(e);
+  px=Math.max(PADDLE_R,Math.min(W-PADDLE_R,p.x+dragOffX));
+  py=Math.max(H/2,Math.min(H-PADDLE_R-5,p.y));
+});
+cv.addEventListener('pointerup',()=>dragging=false);
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+function cpuAI(){
+  const targetX=bx;
+  const dx=targetX-cx_;
+  const targetY=bvy<0?Math.min(H/2-PADDLE_R,bx>W/2?80:60):60+PADDLE_R;
+  const dy=targetY-cy_;
+  const spd=cpuSpeed+(diff===3&&bvy<0?1.5:0);
+  if(Math.abs(dx)>1)cx_+=Math.sign(dx)*Math.min(spd,Math.abs(dx));
+  if(Math.abs(dy)>1)cy_+=Math.sign(dy)*Math.min(spd*0.5,Math.abs(dy));
+  cx_=Math.max(PADDLE_R,Math.min(W-PADDLE_R,cx_));
+  cy_=Math.max(PADDLE_R+5,Math.min(H/2-PADDLE_R,cy_));
+}
+
+function physics(){
+  if(!running)return;
+  bx+=bvx;by+=bvy;
+  // Wall bounce
+  if(bx-PUCK_R<0){bx=PUCK_R;bvx=Math.abs(bvx);playWall();}
+  if(bx+PUCK_R>W){bx=W-PUCK_R;bvx=-Math.abs(bvx);playWall();}
+  // Top/bottom walls (outside goal)
+  const gl=(W-GOAL_W)/2,gr=gl+GOAL_W;
+  if(by-PUCK_R<0&&(bx<gl||bx>gr)){by=PUCK_R;bvy=Math.abs(bvy);playWall();}
+  if(by+PUCK_R>H&&(bx<gl||bx>gr)){by=H-PUCK_R;bvy=-Math.abs(bvy);playWall();}
+  // Player paddle collision
+  function paddleHit(pdx,pdy,vx,vy,isPlayer){
+    const dx=bx-pdx,dy=by-pdy,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<PUCK_R+PADDLE_R&&d>1){
+      const nx=dx/d,ny=dy/d;
+      const dot=bvx*nx+bvy*ny;
+      if(isPlayer&&dot>0)return;
+      if(!isPlayer&&dot<0)return;
+      bvx-=2*dot*nx;bvy-=2*dot*ny;
+      // Add spin from paddle movement
+      const spd=Math.sqrt(bvx*bvx+bvy*bvy);
+      const maxSpd=12;
+      if(spd>maxSpd){bvx=bvx/spd*maxSpd;bvy=bvy/spd*maxSpd;}
+      bx=pdx+nx*(PUCK_R+PADDLE_R+1);by=pdy+ny*(PUCK_R+PADDLE_R+1);
+      playHit();
+    }
+  }
+  paddleHit(px,py,0,0,true);
+  paddleHit(cx_,cy_,0,0,false);
+  checkGoal();
+  cpuAI();
+}
+
+function draw(){
+  // Ice rink
+  const g=ctx.createRadialGradient(W/2,H/2,50,W/2,H/2,280);
+  g.addColorStop(0,'#d4eeff');g.addColorStop(1,'#a0c8f0');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Rink lines
+  ctx.strokeStyle='rgba(0,80,200,0.4)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+  ctx.strokeStyle='rgba(0,80,200,0.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(W/2,H/2,70,0,Math.PI*2);ctx.stroke();
+  // Goals
+  const gl=(W-GOAL_W)/2,gr=gl+GOAL_W;
+  // CPU goal (top) - red
+  ctx.fillStyle='rgba(255,80,80,0.5)';ctx.strokeStyle='#ff3333';ctx.lineWidth=3;
+  ctx.fillRect(gl,0,GOAL_W,GOAL_H);ctx.strokeRect(gl,0,GOAL_W,GOAL_H);
+  // Player goal (bottom) - blue
+  ctx.fillStyle='rgba(80,80,255,0.5)';ctx.strokeStyle='#3333ff';
+  ctx.fillRect(gl,H-GOAL_H,GOAL_W,GOAL_H);ctx.strokeRect(gl,H-GOAL_H,GOAL_W,GOAL_H);
+  // Goal labels
+  ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='11px Arial';ctx.textAlign='center';
+  ctx.fillText('CPU GOAL',W/2,12);ctx.fillText('YOUR GOAL',W/2,H-4);
+  // Rink border
+  ctx.strokeStyle='rgba(0,60,180,0.6)';ctx.lineWidth=4;
+  ctx.strokeRect(2,2,W-4,H-4);
+  // Paddles
+  function drawPaddle(x,y,col,shine){
+    ctx.shadowColor=col;ctx.shadowBlur=12;
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,PADDLE_R,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,PADDLE_R,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=shine;ctx.beginPath();ctx.arc(x-PADDLE_R*0.3,y-PADDLE_R*0.3,PADDLE_R*0.3,0,Math.PI*2);ctx.fill();
+  }
+  drawPaddle(cx_,cy_,'#ff4444','rgba(255,180,180,0.7)');
+  drawPaddle(px,py,'#4488ff','rgba(180,220,255,0.7)');
+  // Puck
+  ctx.shadowColor='#000';ctx.shadowBlur=8;
+  ctx.fillStyle='#111';ctx.beginPath();ctx.arc(bx,by,PUCK_R,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(bx,by,PUCK_R,0,Math.PI*2);ctx.stroke();
+  // Score overlay on rink
+  ctx.fillStyle='rgba(0,40,100,0.3)';ctx.font='bold 36px Arial';ctx.textAlign='center';
+  ctx.fillText(scoreP,W/2-60,H/2-10);
+  ctx.fillStyle='rgba(100,0,0,0.3)';
+  ctx.fillText(scoreC,W/2+60,H/2-10);
+}
+
+function loop(){
+  physics();draw();
+  animId=requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

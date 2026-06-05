@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Rocket Blast</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a0000; color: #ffff00; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; }
+canvas { display: block; margin: 0 auto; }
+#ui { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+#score-display { position: absolute; top: 10px; left: 10px; font-size: 20px; color: #ffff00; text-shadow: 0 0 8px #ff6666; }
+#lives-display { position: absolute; top: 10px; right: 10px; font-size: 20px; color: #ffff00; }
+#power-display { position: absolute; top: 40px; left: 10px; font-size: 14px; color: #ff6666; }
+#home-btn { position: absolute; bottom: 10px; left: 10px; background: #3a0000; border: 2px solid #ff6666; color: #ffff00; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; pointer-events: all; text-decoration: none; z-index: 100; }
+#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(26,0,0,0.92); z-index: 50; }
+#overlay h1 { font-size: 48px; color: #ffff00; text-shadow: 0 0 20px #ff6666; margin-bottom: 10px; }
+#overlay h2 { font-size: 28px; color: #ff6666; margin-bottom: 20px; }
+#overlay p { font-size: 16px; color: #ffff00; margin: 5px 0; max-width: 320px; text-align: center; }
+#overlay .score-big { font-size: 36px; color: #ffff00; margin: 10px 0; }
+#start-btn { margin-top: 20px; background: #3a0000; border: 3px solid #ff6666; color: #ffff00; padding: 14px 40px; border-radius: 8px; cursor: pointer; font-size: 22px; transition: all 0.2s; }
+#start-btn:hover { background: #ff6666; color: #1a0000; }
+#leaderboard { margin-top: 10px; width: 280px; }
+#leaderboard h3 { color: #ff6666; font-size: 16px; margin-bottom: 5px; }
+#lb-list { list-style: none; }
+#lb-list li { display: flex; justify-content: space-between; color: #ffff00; font-size: 14px; padding: 2px 0; border-bottom: 1px solid #3a0000; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="score-display">Score: 0</div>
+  <div id="lives-display">❤️❤️❤️</div>
+  <div id="power-display"></div>
+  <a id="home-btn" href="index.html">🏠 Home</a>
+</div>
+<div id="overlay">
+  <h1>🚀 Rocket Blast</h1>
+  <p>Dodge asteroids, shoot enemies!</p>
+  <p>Swipe left/right to steer • Tap to shoot</p>
+  <p>Collect fuel cells ⚡ and power-ups!</p>
+  <div id="score-area" style="display:none">
+    <h2>Game Over!</h2>
+    <div class="score-big" id="final-score"></div>
+    <div id="hi-score-display" style="color:#ff6666;font-size:18px"></div>
+  </div>
+  <button id="start-btn">LAUNCH!</button>
+  <div id="leaderboard"><h3>🏆 Top Scores</h3><ul id="lb-list"></ul></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+const FB_CONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try {
+  fbApp = firebase.initializeApp(FB_CONFIG, 'lb_rocketblast');
+  fbDb = firebase.database(fbApp);
+} catch(e) {}
+
+function submitScore(score) {
+  if (!fbDb) return;
+  const name = localStorage.getItem('visitorName') || 'Player';
+  fbDb.ref('leaderboard/rocketblast').push({ name, score, ts: Date.now() });
+}
+function loadLeaderboard() {
+  if (!fbDb) return;
+  fbDb.ref('leaderboard/rocketblast').orderByChild('score').limitToLast(5).on('value', snap => {
+    const items = [];
+    snap.forEach(c => items.unshift(c.val()));
+    const ul = document.getElementById('lb-list');
+    ul.innerHTML = items.map((e,i) => `<li><span>${i+1}. ${e.name}</span><span>${e.score}</span></li>`).join('');
+  });
+}
+loadLeaderboard();
+
+// Audio
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function playTone(freq, dur, type='square', vol=0.15) {
+  try {
+    const ctx = getAudio();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+function playShoot() { playTone(880, 0.08, 'sawtooth', 0.1); }
+function playExplode() { playTone(120, 0.3, 'sawtooth', 0.2); setTimeout(()=>playTone(80,0.2,'sawtooth',0.15),100); }
+function playPowerup() { [440,550,660,880].forEach((f,i)=>setTimeout(()=>playTone(f,0.1,'sine',0.15),i*60)); }
+function playHit() { playTone(200, 0.2, 'square', 0.2); }
+
+const canvas = document.getElementById('c');
+const ctx2 = canvas.getContext('2d');
+let W, H;
+function resize() {
+  W = canvas.width = Math.min(window.innerWidth, 480);
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let gameState = 'menu';
+let score, lives, fuel, rocketX, rocketY, rocketVX;
+let bullets, enemies, asteroids, particles, fuelCells, powerups;
+let stars, frame, lastEnemySpawn, lastAstSpawn, lastFuelSpawn, lastPowerSpawn;
+let shield, rapidFire, tripleShot, shieldTimer, rapidTimer, tripleTimer;
+let autoFire, autoFireUpgrade;
+let touchStartX, lastTouchX;
+let tiltX = 0;
+
+function initGame() {
+  score = 0; lives = 3; fuel = 100;
+  rocketX = W / 2; rocketY = H - 120; rocketVX = 0;
+  bullets = []; enemies = []; asteroids = []; particles = [];
+  fuelCells = []; powerups = [];
+  frame = 0; lastEnemySpawn = 0; lastAstSpawn = 0; lastFuelSpawn = 0; lastPowerSpawn = 0;
+  shield = false; rapidFire = false; tripleShot = false;
+  shieldTimer = 0; rapidTimer = 0; tripleTimer = 0;
+  autoFire = false; autoFireUpgrade = false;
+  stars = Array.from({length:100}, () => ({
+    x: Math.random()*W, y: Math.random()*H,
+    speed: 0.5 + Math.random()*2, r: Math.random()*1.5+0.5
+  }));
+}
+
+// Input
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState === 'menu') { startGame(); return; }
+  if (gameState !== 'playing') return;
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  lastTouchX = t.clientX;
+  // tap to shoot
+  fireBullet();
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  const t = e.touches[0];
+  const dx = t.clientX - lastTouchX;
+  rocketVX += dx * 0.5;
+  lastTouchX = t.clientX;
+}, {passive:false});
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+}, {passive:false});
+
+canvas.addEventListener('mousedown', e => {
+  if (gameState === 'menu') { startGame(); return; }
+  if (gameState !== 'playing') return;
+  fireBullet();
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (gameState !== 'playing') return;
+  if (e.buttons === 1) {
+    const rect = canvas.getBoundingClientRect();
+    const targetX = e.clientX - rect.left;
+    rocketVX += (targetX - rocketX) * 0.05;
+  }
+});
+
+// Tilt
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', e => {
+    if (e.accelerationIncludingGravity) {
+      tiltX = (e.accelerationIncludingGravity.x || 0) * 0.8;
+    }
+  });
+}
+
+function fireBullet() {
+  playShoot();
+  const speed = -12;
+  if (tripleShot) {
+    bullets.push({x: rocketX-12, y: rocketY-20, vx:-1.5, vy:speed});
+    bullets.push({x: rocketX, y: rocketY-30, vx:0, vy:speed});
+    bullets.push({x: rocketX+12, y: rocketY-20, vx:1.5, vy:speed});
+  } else {
+    bullets.push({x: rocketX, y: rocketY-30, vx:0, vy:speed});
+  }
+}
+
+let lastAutoFire = 0;
+function update() {
+  frame++;
+  // stars
+  stars.forEach(s => { s.y += s.speed; if (s.y > H) { s.y = 0; s.x = Math.random()*W; } });
+
+  // tilt / keyboard
+  rocketVX += tiltX * 0.1;
+  rocketVX *= 0.85;
+  rocketX += rocketVX;
+  rocketX = Math.max(20, Math.min(W-20, rocketX));
+
+  // auto fire
+  if (autoFireUpgrade) {
+    const fireRate = rapidFire ? 6 : 15;
+    if (frame - lastAutoFire > fireRate) { fireBullet(); lastAutoFire = frame; }
+  }
+
+  // fuel drain
+  fuel -= 0.05;
+  if (fuel <= 0) { fuel = 0; takeDamage(); fuel = 30; }
+
+  // score
+  score += 1;
+
+  // timers
+  if (shield && frame > shieldTimer) shield = false;
+  if (rapidFire && frame > rapidTimer) rapidFire = false;
+  if (tripleShot && frame > tripleTimer) tripleShot = false;
+
+  // spawn enemies
+  const speed = 1 + Math.floor(score/500)*0.3;
+  if (frame - lastEnemySpawn > Math.max(40, 90 - score/100)) {
+    enemies.push({x: Math.random()*(W-40)+20, y:-20, vy: 1.5+Math.random()*speed, hp:2, type: Math.random()<0.3?'shooter':'chaser'});
+    lastEnemySpawn = frame;
+  }
+  // spawn asteroids
+  if (frame - lastAstSpawn > Math.max(30, 70 - score/150)) {
+    asteroids.push({x: Math.random()*(W-30)+15, y:-20, vx:(Math.random()-0.5)*2, vy:1.5+Math.random()*2, r:12+Math.random()*18, rot:0, rotV:(Math.random()-0.5)*0.1});
+    lastAstSpawn = frame;
+  }
+  // spawn fuel
+  if (frame - lastFuelSpawn > 120) {
+    fuelCells.push({x: Math.random()*(W-30)+15, y:-20, vy:1.5});
+    lastFuelSpawn = frame;
+  }
+  // spawn powerups
+  if (frame - lastPowerSpawn > 300) {
+    const types = ['shield','rapid','triple','auto'];
+    powerups.push({x: Math.random()*(W-30)+15, y:-20, vy:1.5, type: types[Math.floor(Math.random()*types.length)]});
+    lastPowerSpawn = frame;
+  }
+
+  // update bullets
+  bullets = bullets.filter(b => {
+    b.x += b.vx; b.y += b.vy;
+    return b.y > -10 && b.x > -10 && b.x < W+10;
+  });
+
+  // update enemies
+  enemies.forEach(e => {
+    e.y += e.vy;
+    if (e.type === 'chaser') {
+      e.x += (rocketX - e.x) * 0.01;
+    }
+  });
+
+  // update asteroids
+  asteroids.forEach(a => {
+    a.x += a.vx; a.y += a.vy; a.rot += a.rotV;
+    if (a.x < a.r || a.x > W-a.r) a.vx *= -1;
+  });
+
+  fuelCells.forEach(f2 => f2.y += f2.vy);
+  powerups.forEach(p => p.y += p.vy);
+
+  // bullet-enemy collisions
+  bullets.forEach((b, bi) => {
+    enemies.forEach((e, ei) => {
+      if (Math.abs(b.x-e.x)<18 && Math.abs(b.y-e.y)<18) {
+        e.hp--;
+        bullets.splice(bi, 1);
+        spawnParticles(e.x, e.y, '#ff6666', 8);
+        if (e.hp <= 0) {
+          playExplode();
+          score += 50;
+          spawnParticles(e.x, e.y, '#ffff00', 15);
+          enemies.splice(ei, 1);
+        }
+      }
+    });
+    asteroids.forEach((a, ai) => {
+      if (Math.hypot(b.x-a.x, b.y-a.y) < a.r) {
+        bullets.splice(bi, 1);
+        a.hp = (a.hp||1) - 1;
+        spawnParticles(a.x, a.y, '#888', 6);
+        if (a.hp <= 0) {
+          playExplode();
+          score += 20;
+          spawnParticles(a.x, a.y, '#aaa', 12);
+          asteroids.splice(ai, 1);
+        }
+      }
+    });
+  });
+
+  // rocket-enemy/asteroid collisions
+  [...enemies, ...asteroids].forEach((e, i) => {
+    const r = e.r || 20;
+    if (Math.hypot(rocketX-e.x, rocketY-e.y) < r+18) {
+      if (!shield) takeDamage();
+      else { playPowerup(); spawnParticles(rocketX, rocketY, '#00aaff', 10); }
+      if (i < enemies.length) enemies.splice(i, 1);
+      else asteroids.splice(i - enemies.length, 1);
+    }
+  });
+
+  // fuel cell collection
+  fuelCells = fuelCells.filter(f2 => {
+    if (Math.hypot(rocketX-f2.x, rocketY-f2.y) < 30) {
+      fuel = Math.min(100, fuel+25);
+      playPowerup();
+      spawnParticles(f2.x, f2.y, '#00ff88', 8);
+      return false;
+    }
+    return f2.y < H+20;
+  });
+
+  // powerup collection
+  powerups = powerups.filter(p => {
+    if (Math.hypot(rocketX-p.x, rocketY-p.y) < 28) {
+      playPowerup();
+      spawnParticles(p.x, p.y, '#ffff00', 12);
+      if (p.type==='shield') { shield=true; shieldTimer=frame+300; }
+      if (p.type==='rapid') { rapidFire=true; rapidTimer=frame+300; }
+      if (p.type==='triple') { tripleShot=true; tripleTimer=frame+300; }
+      if (p.type==='auto') { autoFireUpgrade=true; }
+      return false;
+    }
+    return p.y < H+20;
+  });
+
+  // cleanup off-screen
+  enemies = enemies.filter(e => e.y < H+30);
+  asteroids = asteroids.filter(a => a.y < H+30);
+
+  // update particles
+  particles = particles.filter(p => {
+    p.x += p.vx; p.y += p.vy; p.life--; p.vy += 0.1;
+    return p.life > 0;
+  });
+
+  // update score display
+  document.getElementById('score-display').textContent = `Score: ${score}`;
+  const livesStr = '❤️'.repeat(Math.max(0,lives));
+  document.getElementById('lives-display').textContent = livesStr;
+  const powers = [];
+  if (shield) powers.push('🛡️ Shield');
+  if (rapidFire) powers.push('🔥 Rapid');
+  if (tripleShot) powers.push('Triple Shot');
+  if (autoFireUpgrade) powers.push('Auto-Fire');
+  document.getElementById('power-display').textContent = powers.join(' ');
+}
+
+function takeDamage() {
+  lives--;
+  playHit();
+  spawnParticles(rocketX, rocketY, '#ff0000', 20);
+  if (lives <= 0) endGame();
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i=0; i<count; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const spd = 1+Math.random()*4;
+    particles.push({x, y, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd, color, life:20+Math.random()*20, maxLife:40});
+  }
+}
+
+function draw() {
+  ctx2.fillStyle = '#1a0000';
+  ctx2.fillRect(0, 0, W, H);
+
+  // stars
+  stars.forEach(s => {
+    ctx2.fillStyle = `rgba(255,255,200,${0.3+s.r*0.2})`;
+    ctx2.beginPath();
+    ctx2.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx2.fill();
+  });
+
+  // fuel bar
+  ctx2.fillStyle = '#3a0000';
+  ctx2.fillRect(W/2-60, H-25, 120, 10);
+  ctx2.fillStyle = fuel > 30 ? '#00ff88' : '#ff4444';
+  ctx2.fillRect(W/2-60, H-25, 120*(fuel/100), 10);
+  ctx2.strokeStyle = '#ff6666';
+  ctx2.strokeRect(W/2-60, H-25, 120, 10);
+  ctx2.fillStyle = '#ffff00';
+  ctx2.font = '11px Arial';
+  ctx2.textAlign = 'center';
+  ctx2.fillText('FUEL', W/2, H-13);
+
+  // bullets
+  bullets.forEach(b => {
+    ctx2.fillStyle = rapidFire ? '#ff8800' : '#ffff00';
+    ctx2.shadowBlur = 8;
+    ctx2.shadowColor = '#ffff00';
+    ctx2.fillRect(b.x-2, b.y-6, 4, 12);
+    ctx2.shadowBlur = 0;
+  });
+
+  // enemies
+  enemies.forEach(e => {
+    ctx2.save();
+    ctx2.translate(e.x, e.y);
+    // enemy ship
+    ctx2.fillStyle = '#ff3333';
+    ctx2.beginPath();
+    ctx2.moveTo(0, 15);
+    ctx2.lineTo(-14, -10);
+    ctx2.lineTo(14, -10);
+    ctx2.closePath();
+    ctx2.fill();
+    ctx2.strokeStyle = '#ff6666';
+    ctx2.lineWidth = 2;
+    ctx2.stroke();
+    ctx2.fillStyle = '#ffff00';
+    ctx2.beginPath();
+    ctx2.arc(0, 2, 4, 0, Math.PI*2);
+    ctx2.fill();
+    ctx2.restore();
+  });
+
+  // asteroids
+  asteroids.forEach(a => {
+    ctx2.save();
+    ctx2.translate(a.x, a.y);
+    ctx2.rotate(a.rot);
+    ctx2.fillStyle = '#664422';
+    ctx2.beginPath();
+    const sides = 7;
+    for (let i=0; i<sides; i++) {
+      const angle = (i/sides)*Math.PI*2;
+      const r2 = a.r * (0.7+0.3*Math.sin(i*2.3));
+      i===0 ? ctx2.moveTo(Math.cos(angle)*r2, Math.sin(angle)*r2) : ctx2.lineTo(Math.cos(angle)*r2, Math.sin(angle)*r2);
+    }
+    ctx2.closePath();
+    ctx2.fill();
+    ctx2.strokeStyle = '#aa8855';
+    ctx2.lineWidth = 2;
+    ctx2.stroke();
+    ctx2.restore();
+  });
+
+  // fuel cells
+  fuelCells.forEach(f2 => {
+    ctx2.fillStyle = '#00ff88';
+    ctx2.shadowBlur = 10;
+    ctx2.shadowColor = '#00ff88';
+    ctx2.fillRect(f2.x-6, f2.y-10, 12, 20);
+    ctx2.fillStyle = '#ffff00';
+    ctx2.font = '14px Arial';
+    ctx2.textAlign = 'center';
+    ctx2.fillText('⚡', f2.x, f2.y+5);
+    ctx2.shadowBlur = 0;
+  });
+
+  // powerups
+  const pwIcons = {shield:'🛡️', rapid:'🔥', triple:'🔱', auto:'🤖'};
+  powerups.forEach(p => {
+    ctx2.save();
+    ctx2.shadowBlur = 15;
+    ctx2.shadowColor = '#ffff00';
+    ctx2.font = '22px Arial';
+    ctx2.textAlign = 'center';
+    ctx2.fillText(pwIcons[p.type]||'⭐', p.x, p.y+8);
+    ctx2.restore();
+  });
+
+  // particles
+  particles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx2.globalAlpha = alpha;
+    ctx2.fillStyle = p.color;
+    ctx2.beginPath();
+    ctx2.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx2.fill();
+  });
+  ctx2.globalAlpha = 1;
+
+  // rocket
+  ctx2.save();
+  ctx2.translate(rocketX, rocketY);
+
+  // shield bubble
+  if (shield) {
+    ctx2.strokeStyle = `rgba(0,170,255,${0.4+0.3*Math.sin(frame*0.15)})`;
+    ctx2.lineWidth = 3;
+    ctx2.beginPath();
+    ctx2.arc(0, 0, 30, 0, Math.PI*2);
+    ctx2.stroke();
+  }
+
+  // flame
+  const flameH = 15 + Math.random()*10;
+  const gradient = ctx2.createLinearGradient(0, 10, 0, 10+flameH);
+  gradient.addColorStop(0, '#ff8800');
+  gradient.addColorStop(1, 'rgba(255,50,0,0)');
+  ctx2.fillStyle = gradient;
+  ctx2.beginPath();
+  ctx2.moveTo(-6, 10);
+  ctx2.lineTo(6, 10);
+  ctx2.lineTo(0, 10+flameH);
+  ctx2.closePath();
+  ctx2.fill();
+
+  // rocket body
+  ctx2.fillStyle = '#ccccff';
+  ctx2.beginPath();
+  ctx2.moveTo(0, -30);
+  ctx2.lineTo(-10, 10);
+  ctx2.lineTo(10, 10);
+  ctx2.closePath();
+  ctx2.fill();
+  ctx2.strokeStyle = '#ff6666';
+  ctx2.lineWidth = 2;
+  ctx2.stroke();
+  // cockpit
+  ctx2.fillStyle = '#00ccff';
+  ctx2.beginPath();
+  ctx2.ellipse(0, -5, 6, 8, 0, 0, Math.PI*2);
+  ctx2.fill();
+  // wings
+  ctx2.fillStyle = '#ff4444';
+  ctx2.beginPath();
+  ctx2.moveTo(-10, 5); ctx2.lineTo(-20, 15); ctx2.lineTo(-10, 10);
+  ctx2.closePath(); ctx2.fill();
+  ctx2.beginPath();
+  ctx2.moveTo(10, 5); ctx2.lineTo(20, 15); ctx2.lineTo(10, 10);
+  ctx2.closePath(); ctx2.fill();
+
+  ctx2.restore();
+}
+
+let animId;
+function gameLoop() {
+  if (gameState === 'playing') { update(); draw(); }
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  initGame();
+  gameState = 'playing';
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('score-area').style.display = 'none';
+}
+
+function endGame() {
+  gameState = 'gameover';
+  const hiKey = 'rb_hi';
+  const hi = parseInt(localStorage.getItem(hiKey)||'0');
+  if (score > hi) localStorage.setItem(hiKey, score);
+  submitScore(score);
+  document.getElementById('final-score').textContent = `Score: ${score}`;
+  document.getElementById('hi-score-display').textContent = `Best: ${Math.max(score,hi)}`;
+  document.getElementById('score-area').style.display = 'block';
+  document.querySelector('#overlay h1').textContent = '🚀 Rocket Blast';
+  document.querySelector('#overlay h2').style.display = 'block';
+  document.getElementById('start-btn').textContent = 'Play Again!';
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+gameLoop();
+</script>
+</body>
+</html>

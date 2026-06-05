@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Treasure Hunt - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
+    h1 { font-size: 22px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 24px; font-size: 16px; cursor: pointer; font-weight: bold; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 480px; }
+    #hud { display: flex; justify-content: space-between; width: 100%; font-size: 13px; font-weight: bold; color: #ffcc00; padding: 2px 4px; flex-wrap: wrap; gap: 4px; }
+    #grid-wrap { position: relative; width: 100%; }
+    #map-grid { display: grid; gap: 2px; width: 100%; }
+    .cell { aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 1px solid #2a0000; background: #0d0000; cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .cell.fog { background: #0d0000; border-color: #1a0000; }
+    .cell.fog:hover { background: #1a0505; }
+    .cell.revealed { border-color: #3a1100; }
+    .cell.sea { background: #001a3a; border-color: #003366; }
+    .cell.jungle { background: #0a2200; border-color: #1a4400; }
+    .cell.desert { background: #2a1a00; border-color: #4a3000; }
+    .cell.mountain { background: #1a1a1a; border-color: #333; }
+    .cell.player { border-color: yellow; background: #330022; box-shadow: 0 0 8px yellow; }
+    .cell.treasure { animation: tglow 1s infinite alternate; }
+    @keyframes tglow { from { box-shadow: 0 0 4px gold; } to { box-shadow: 0 0 16px gold; } }
+    #compass { background: #2a0000; border: 2px solid #ff6666; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; font-size: 28px; transition: transform 0.5s; flex-shrink: 0; }
+    #action-row { display: flex; gap: 8px; align-items: center; justify-content: center; width: 100%; flex-wrap: wrap; }
+    #ap-bar-wrap { flex: 1; min-width: 120px; }
+    #ap-label { font-size: 12px; color: #ffaa44; margin-bottom: 3px; }
+    #ap-bar { height: 12px; background: #330000; border-radius: 6px; overflow: hidden; border: 1px solid #ff6666; }
+    #ap-fill { height: 100%; background: linear-gradient(90deg, #ffaa00, #ffff00); transition: width 0.3s; }
+    #msg { font-size: 14px; color: #ffcc88; text-align: center; min-height: 20px; }
+    #map-select { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .map-btn { background: #2a0000; border: 2px solid #ff6666; color: #ffcc00; border-radius: 8px; padding: 6px 14px; font-size: 14px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; }
+    .map-btn.active { background: #660000; border-color: yellow; color: yellow; }
+    .map-btn.locked { opacity: 0.4; cursor: not-allowed; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px; font-size: 13px; color: #ffcccc; line-height: 1.6; width: 100%; }
+    #lb-list { width: 100%; max-height: 140px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    #end-screen { display: none; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:36px"></div>
+  <h1>🗺️ Treasure Hunt</h1>
+  <div class="info-box">
+    🧭 Explore the foggy map to find the golden chest!<br>
+    💎 Collect gems • 💀 Avoid traps • ⚔️ Fight enemies<br>
+    Each move costs 1 Action Point. Find the 🏆 chest to win!<br>
+    Use the compass — it points toward treasure!
+  </div>
+  <div id="map-select">
+    <button class="map-btn active" id="mbtn0" onclick="selectMap(0)">Map 1</button>
+    <button class="map-btn" id="mbtn1" onclick="selectMap(1)">Map 2</button>
+    <button class="map-btn locked" id="mbtn2" onclick="selectMap(2)">Map 3</button>
+    <button class="map-btn locked" id="mbtn3" onclick="selectMap(3)">Map 4</button>
+    <button class="map-btn locked" id="mbtn4" onclick="selectMap(4)">Map 5</button>
+  </div>
+  <div id="lb-list"><div style="text-align:center;color:#ff9999;font-size:13px">Loading scores...</div></div>
+  <button class="btn" onclick="startGame()">⚔️ Start Adventure!</button>
+  <div style="height:20px"></div>
+</div>
+
+<div id="game-area">
+  <div style="height:44px"></div>
+  <h1>🗺️ Treasure Hunt</h1>
+  <div id="hud">
+    <span>🗺️ Map <span id="mapNum">1</span>/5</span>
+    <span>⭐ Score: <span id="score">0</span></span>
+    <span>💎 <span id="gems">0</span></span>
+    <span>❤️ <span id="hp">3</span>/3</span>
+  </div>
+  <div id="action-row">
+    <div id="compass" title="Points to treasure">🧭</div>
+    <div id="ap-bar-wrap">
+      <div id="ap-label">⚡ Action Points: <span id="apNum">10</span>/10</div>
+      <div id="ap-bar"><div id="ap-fill" style="width:100%"></div></div>
+    </div>
+    <button class="btn" style="padding:6px 12px;font-size:13px" onclick="endTurn()">End Turn</button>
+  </div>
+  <div id="msg">Tap a cell to explore!</div>
+  <div id="grid-wrap">
+    <div id="map-grid"></div>
+  </div>
+  <button class="btn" style="margin-top:4px;padding:6px 14px;font-size:13px" onclick="goHome()">🏠 Give Up</button>
+</div>
+
+<div id="end-screen">
+  <div style="height:44px"></div>
+  <h1>🏆 Treasure Found!</h1>
+  <div id="end-msg" class="info-box" style="text-align:center"></div>
+  <div style="font-size:13px;color:#ffaa44">Top Scores:</div>
+  <div id="lb-list-end" style="width:100%;max-height:140px;overflow-y:auto"></div>
+  <button class="btn" onclick="nextMap()">Next Map ➡️</button>
+  <button class="btn" onclick="goHome()">🏠 Home</button>
+</div>
+
+<script>
+const FBCONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try { fbApp = firebase.initializeApp(FBCONFIG, 'lb_treasurehunt'); fbDb = firebase.database(fbApp); } catch(e){}
+
+const GAME_ID = 'treasurehunt';
+const playerName = () => localStorage.getItem('visitorName') || 'Player';
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, type='square', vol=0.3) {
+  try { const a=getAudio(); const o=a.createOscillator(); const g=a.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+
+// Map configs: size, treasures, traps, enemies, gems, powerups
+const MAP_CONFIGS = [
+  { size:6, gems:4, traps:3, enemies:2, powerups:1 },
+  { size:7, gems:5, traps:4, enemies:3, powerups:2 },
+  { size:8, gems:7, traps:5, enemies:4, powerups:2 },
+  { size:9, gems:8, traps:7, enemies:5, powerups:3 },
+  { size:10, gems:10, traps:9, enemies:7, powerups:3 },
+];
+const TERRAINS = ['sea','jungle','desert','mountain'];
+const TERRAIN_NAMES = { sea:'🌊 Sea', jungle:'🌿 Jungle', desert:'🏜️ Desert', mountain:'⛰️ Mountain' };
+
+let currentMap = 0;
+let grid = [], revealed = [], playerPos = {x:0,y:0}, treasurePos = {x:0,y:0};
+let ap = 10, hp = 3, score = 0, gems = 0, size = 6, turn = 1;
+let mapsUnlocked = parseInt(localStorage.getItem('th_unlocked')||'1');
+
+function selectMap(i) {
+  if (i >= mapsUnlocked) return;
+  currentMap = i;
+  document.querySelectorAll('.map-btn').forEach((b,idx) => b.classList.toggle('active', idx===i));
+}
+
+function loadLeaderboard(listEl) {
+  if (!fbDb) return;
+  fbDb.ref('leaderboard/'+GAME_ID).orderByChild('score').limitToLast(8).once('value', snap => {
+    const rows = [];
+    snap.forEach(c => rows.push(c.val()));
+    rows.reverse();
+    listEl.innerHTML = rows.length ? rows.map((r,i)=>`<div class="lb-row"><span>#${i+1} ${r.name}</span><span>${r.score}pts</span></div>`).join('') : '<div class="lb-row">No scores yet!</div>';
+  });
+}
+
+function submitScore(s) {
+  if (!fbDb) return;
+  fbDb.ref('leaderboard/'+GAME_ID).push({ name: playerName(), score: s, ts: Date.now() });
+}
+
+function initMaps() {
+  for (let i = 0; i < 5; i++) {
+    const btn = document.getElementById('mbtn'+i);
+    if (i < mapsUnlocked) btn.classList.remove('locked');
+    else btn.classList.add('locked');
+  }
+  loadLeaderboard(document.getElementById('lb-list'));
+}
+
+function buildGrid() {
+  const cfg = MAP_CONFIGS[currentMap];
+  size = cfg.size;
+  grid = [];
+  revealed = [];
+  for (let y = 0; y < size; y++) {
+    grid.push([]);
+    revealed.push([]);
+    for (let x = 0; x < size; x++) {
+      grid[y].push({ terrain: TERRAINS[Math.floor(Math.random()*4)], item: null });
+      revealed[y].push(false);
+    }
+  }
+  // Place items randomly
+  function rnd() { return { x: Math.floor(Math.random()*size), y: Math.floor(Math.random()*size) }; }
+  function place(item, count, avoid) {
+    let placed = 0;
+    let tries = 0;
+    while (placed < count && tries < 200) {
+      tries++;
+      const p = rnd();
+      if (avoid.some(a => a.x===p.x && a.y===p.y)) continue;
+      if (grid[p.y][p.x].item !== null) continue;
+      grid[p.y][p.x].item = item;
+      avoid.push(p);
+      placed++;
+    }
+  }
+  const avoid = [{x:0,y:0}];
+  // Treasure always in far corner area
+  treasurePos = { x: size-1-Math.floor(Math.random()*2), y: size-1-Math.floor(Math.random()*2) };
+  grid[treasurePos.y][treasurePos.x].item = '🏆';
+  avoid.push({...treasurePos});
+  place('💎', cfg.gems, avoid);
+  place('💀', cfg.traps, avoid);
+  place('⚔️', cfg.enemies, avoid);
+  place('❤️', cfg.powerups, avoid);
+  playerPos = {x:0, y:0};
+  revealed[0][0] = true;
+  ap = 10; hp = 3; gems = 0;
+  revealAround(0,0);
+}
+
+function revealAround(x, y) {
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+    const nx=x+dx, ny=y+dy;
+    if (nx>=0 && nx<size && ny>=0 && ny<size) revealed[ny][nx] = true;
+  }
+}
+
+function renderGrid() {
+  const el = document.getElementById('map-grid');
+  el.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+  el.innerHTML = '';
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const isPlayer = playerPos.x===x && playerPos.y===y;
+      if (isPlayer) {
+        cell.classList.add('player');
+        cell.textContent = '🧑';
+      } else if (!revealed[y][x]) {
+        cell.classList.add('fog');
+        cell.textContent = '🌫️';
+      } else {
+        const t = grid[y][x];
+        cell.classList.add('revealed', t.terrain);
+        if (t.item === '🏆') cell.classList.add('treasure');
+        cell.textContent = t.item || terrainEmoji(t.terrain);
+      }
+      if (!isPlayer && revealed[y][x]) {
+        cell.addEventListener('click', () => moveTo(x, y));
+        cell.addEventListener('touchstart', (e) => { e.preventDefault(); moveTo(x, y); }, {passive:false});
+      }
+      el.appendChild(cell);
+    }
+  }
+  updateCompass();
+}
+
+function terrainEmoji(t) {
+  return {sea:'🌊',jungle:'🌿',desert:'🏜️',mountain:'⛰️'}[t] || '';
+}
+
+function updateCompass() {
+  const dx = treasurePos.x - playerPos.x;
+  const dy = treasurePos.y - playerPos.y;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  document.getElementById('compass').style.transform = `rotate(${angle}deg)`;
+}
+
+function updateHUD() {
+  document.getElementById('mapNum').textContent = currentMap+1;
+  document.getElementById('score').textContent = score;
+  document.getElementById('gems').textContent = gems;
+  document.getElementById('hp').textContent = hp;
+  document.getElementById('apNum').textContent = ap;
+  document.getElementById('ap-fill').style.width = (ap/10*100)+'%';
+}
+
+function moveTo(tx, ty) {
+  if (ap <= 0) { showMsg('No action points! End your turn.'); beep(200,0.2); return; }
+  // Only allow adjacent or revealed cells (clicking any revealed is walk-toward)
+  const dx = Math.abs(tx - playerPos.x), dy = Math.abs(ty - playerPos.y);
+  if (dx > 1 || dy > 1) {
+    // Step one cell toward target
+    const sx = Math.sign(tx - playerPos.x), sy = Math.sign(ty - playerPos.y);
+    tx = playerPos.x + (sx || 0);
+    ty = playerPos.y + (sy ? sy : 0);
+    if (tx===playerPos.x && ty===playerPos.y) return;
+  }
+  playerPos = {x:tx, y:ty};
+  ap--;
+  revealAround(tx, ty);
+  const cell = grid[ty][tx];
+  let msg = `Moved to ${TERRAIN_NAMES[cell.terrain]}`;
+  if (cell.item) {
+    if (cell.item === '💎') { score += 50; gems++; beep(800,0.15,'sine'); msg = '💎 Found a gem! +50pts'; cell.item = null; }
+    else if (cell.item === '💀') { hp--; beep(200,0.3,'sawtooth'); msg = '💀 Trap! Ouch! -1 HP'; cell.item = null; if(hp<=0){gameOver();return;} }
+    else if (cell.item === '⚔️') { hp--; score+=30; beep(400,0.2,'square'); msg = '⚔️ Fought an enemy! -1 HP +30pts'; cell.item = null; if(hp<=0){gameOver();return;} }
+    else if (cell.item === '❤️') { hp=Math.min(3,hp+1); beep(600,0.2,'sine'); msg = '❤️ Found a potion! +1 HP'; cell.item = null; }
+    else if (cell.item === '🏆') { winLevel(); return; }
+  } else {
+    beep(300,0.05,'sine',0.1);
+  }
+  showMsg(msg);
+  updateHUD();
+  renderGrid();
+}
+
+function showMsg(m) { document.getElementById('msg').textContent = m; }
+
+function endTurn() {
+  ap = 10; turn++;
+  beep(500,0.1,'sine');
+  showMsg(`⚡ Turn ${turn} — Action points refilled!`);
+  updateHUD();
+}
+
+function winLevel() {
+  beep(800,0.1); beep(1000,0.1); beep(1200,0.3,'sine');
+  score += 200 + ap * 10;
+  const best = parseInt(localStorage.getItem('th_best')||'0');
+  if (score > best) localStorage.setItem('th_best', score);
+  submitScore(score);
+  if (currentMap+1 >= mapsUnlocked) {
+    mapsUnlocked = Math.min(5, currentMap+2);
+    localStorage.setItem('th_unlocked', mapsUnlocked);
+  }
+  document.getElementById('end-msg').innerHTML = `🏆 Treasure Found!<br>Score: <b style="color:yellow">${score}</b><br>Gems: ${gems} 💎 | HP: ${hp} ❤️`;
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'flex';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function gameOver() {
+  beep(200,0.5,'sawtooth');
+  document.getElementById('end-msg').innerHTML = `💀 You fell!<br>Score: <b style="color:yellow">${score}</b><br>Map ${currentMap+1} • Keep exploring!`;
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'flex';
+  document.getElementById('end-screen').querySelector('h1').textContent = '💀 Game Over';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function startGame() {
+  score = 0;
+  buildGrid();
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('game-area').style.display = 'flex';
+  updateHUD();
+  renderGrid();
+  showMsg('Tap any cell to move there!');
+}
+
+function nextMap() {
+  if (currentMap < 4) currentMap++;
+  score = 0;
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('end-screen').querySelector('h1').textContent = '🏆 Treasure Found!';
+  startGame();
+}
+
+function goHome() {
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('start-screen').style.display = 'flex';
+  initMaps();
+}
+
+initMaps();
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Home Run Derby</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a0000;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none}
+h1{color:#ffff00;font-size:26px;margin:8px 0 2px;text-shadow:0 0 10px #ff0}
+canvas{border:3px solid #ff6666;border-radius:10px;max-width:100%;touch-action:none;display:block}
+#ui{width:100%;max-width:480px;padding:0 10px}
+.bar-row{display:flex;align-items:center;gap:8px;margin:3px 0}
+.label{color:#ffcc00;font-size:12px;min-width:75px}
+.bar-bg{flex:1;height:14px;background:#330000;border:2px solid #ff6666;border-radius:7px;overflow:hidden}
+.bar-fill{height:100%;border-radius:7px;transition:width 0.1s}
+.info-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px;color:#ffcc00}
+.btn{background:#8b0000;color:#ffff00;border:2px solid #ff6666;padding:10px 24px;border-radius:10px;font-size:17px;font-weight:bold;cursor:pointer;margin:3px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:none}
+.btn:active{background:#cc0000;transform:scale(0.95)}
+#swingBtn{background:#006600;border-color:#00ff00;font-size:22px;padding:14px 50px;margin-top:5px;width:220px}
+#swingBtn:active{background:#00aa00}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:10px}
+#overlay h2{color:#ffff00;font-size:28px;text-align:center}
+#overlay p{color:#fff;font-size:15px;text-align:center;max-width:300px;line-height:1.4}
+.diff-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.hb{position:fixed;top:8px;left:10px;z-index:20}
+.hb a{color:#ffff00;text-decoration:none;border:2px solid #ff6666;padding:4px 10px;border-radius:8px;font-size:13px;background:#1a0000}
+#resultFlash{position:fixed;top:28%;left:50%;transform:translateX(-50%);font-size:44px;font-weight:bold;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:30;text-shadow:0 0 20px currentColor;white-space:nowrap}
+#comboDisp{position:fixed;top:40%;left:50%;transform:translateX(-50%);font-size:20px;color:#ffaa00;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:30;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="hb"><a href="index.html">&#127968; Home</a></div>
+<h1>&#9918; Home Run Derby</h1>
+<div id="ui">
+  <div class="info-row">
+    <span>Pitch: <b id="pitchNum">0</b>/10</span>
+    <span id="diffDisp" style="color:#ff9900"></span>
+    <span>Score: <b id="scoreDisp">0</b></span>
+    <span>Best: <b id="bestDisp">0</b></span>
+  </div>
+  <div class="bar-row">
+    <span class="label">Ball Speed</span>
+    <div class="bar-bg"><div class="bar-fill" id="pitchFill" style="width:0%;background:#ff6600"></div></div>
+  </div>
+  <div class="bar-row">
+    <span class="label">Power &#9889;</span>
+    <div class="bar-bg"><div class="bar-fill" id="powerFill" style="width:0%;background:#ffff00"></div></div>
+  </div>
+</div>
+<canvas id="c" width="480" height="270"></canvas>
+<button class="btn" id="swingBtn">&#127959; SWING!</button>
+<div id="resultFlash"></div>
+<div id="comboDisp"></div>
+
+<div id="overlay">
+  <h2>&#9918; Home Run Derby</h2>
+  <p>Watch the ball &#8212; swing at just the right moment! Closer to home plate = better hit!</p>
+  <p style="color:#ffcc00;font-size:13px">&#128293; = Homer (10pts) &nbsp; &#9989; = Hit (3pts) &nbsp; &#10060; = Miss</p>
+  <p style="color:#aaa;font-size:12px">Choose Difficulty:</p>
+  <div class="diff-btns">
+    <button class="btn" onclick="startGame(1)">&#128034; Slow</button>
+    <button class="btn" onclick="startGame(2)">&#9889; Medium</button>
+    <button class="btn" onclick="startGame(3)">&#128293; Fast</button>
+  </div>
+  <div id="finalScore" style="display:none;color:#ffff00;font-size:18px;text-align:center;margin-top:8px"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+const FB_CFG={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbDb=null;
+function initFB(){try{let app;if(firebase.apps.find(a=>a.name==='lb_baseball')){app=firebase.apps.find(a=>a.name==='lb_baseball');}else{app=firebase.initializeApp(FB_CFG,'lb_baseball');}fbDb=firebase.database(app);}catch(e){console.log('FB err',e);}}
+initFB();
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let audioCtx=null;
+function getAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return audioCtx;}
+function playTone(freq,type,dur,vol){try{const a=getAudio();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol||0.3,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.start();o.stop(a.currentTime+dur);}catch(e){}}
+function playCrowd(){try{playTone(880,'sine',0.4,0.25);setTimeout(()=>playTone(1100,'sine',0.4,0.25),150);setTimeout(()=>playTone(1320,'sine',0.6,0.3),300);setTimeout(()=>playTone(1100,'sine',0.5,0.2),500);const a=getAudio();if(!a)return;for(let i=0;i<12;i++){const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type='sawtooth';o.frequency.value=150+Math.random()*350;g.gain.setValueAtTime(0.04,a.currentTime+i*0.04);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+i*0.04+0.25);o.start(a.currentTime+i*0.04);o.stop(a.currentTime+i*0.04+0.3);}}catch(e){}}
+
+let diff=1,pitches=0,score=0,best=parseInt(localStorage.getItem('bb_best')||'0');
+let ballX=490,ballY=140,ballVX=0,ballVY=0;
+let throwing=false,canSwing=false,swung=false;
+let power=0,combo=0;
+let particles=[];
+let animId=null,pitchTimeout=null;
+let pitchSpeed=3;
+const PLATE_X=55,PLATE_Y=190;
+const DIFF_NAMES=['','SLOW','MEDIUM','FAST'];
+
+function updateDisps(){
+  document.getElementById('bestDisp').textContent=best;
+  document.getElementById('scoreDisp').textContent=score;
+  document.getElementById('diffDisp').textContent=DIFF_NAMES[diff];
+}
+
+function startGame(d){
+  diff=d;pitches=0;score=0;combo=0;power=0;
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('finalScore').style.display='none';
+  updateDisps();
+  document.getElementById('pitchFill').style.width='0%';
+  document.getElementById('powerFill').style.width='0%';
+  document.getElementById('pitchNum').textContent='0';
+  particles=[];
+  if(animId)cancelAnimationFrame(animId);
+  if(pitchTimeout)clearTimeout(pitchTimeout);
+  loop();
+  pitchTimeout=setTimeout(throwPitch,800);
+}
+
+function throwPitch(){
+  if(pitches>=10){endGame();return;}
+  pitches++;
+  document.getElementById('pitchNum').textContent=pitches;
+  const speeds=[2.8,5.0,8.0];
+  pitchSpeed=speeds[diff-1]+Math.random()*1.5;
+  const pHeight=95+Math.random()*85;
+  ballX=490;ballY=pHeight;
+  const frames=(480-PLATE_X)/pitchSpeed;
+  ballVX=-pitchSpeed;
+  ballVY=(PLATE_Y-pHeight)/frames;
+  throwing=true;canSwing=true;swung=false;
+  document.getElementById('pitchFill').style.width=(pitchSpeed/11*100).toFixed(0)+'%';
+}
+
+function doSwing(){
+  if(!canSwing||swung)return;
+  getAudio();
+  swung=true;canSwing=false;
+  playTone(180,'square',0.08,0.4);
+  const dx=ballX-PLATE_X,dy=ballY-PLATE_Y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist<38){
+    combo++;power=Math.min(100,power+22);
+    const bonus=(combo>=3?combo*4:0)+(power>60?6:0);
+    score+=10+bonus;
+    showResult('&#128293; HOME RUN!','#ffff00');
+    if(combo>=3)showCombo('x'+combo+' COMBO! +'+bonus);
+    playCrowd();
+    spawnParticles(ballX,ballY,'#ffff00',22);
+    spawnParticles(ballX,ballY,'#ff8800',12);
+    ballVX=4+Math.random()*3;ballVY=-5.5-Math.random()*2.5;
+    if(pitchTimeout)clearTimeout(pitchTimeout);
+    pitchTimeout=setTimeout(()=>{throwing=false;pitchTimeout=setTimeout(throwPitch,500);},1100);
+  }else if(dist<78){
+    combo++;power=Math.min(100,power+10);
+    const bonus=combo>=3?combo*2:0;
+    score+=3+bonus;
+    showResult('&#9989; HIT!','#00ff88');
+    if(combo>=3)showCombo('x'+combo+' COMBO!');
+    playTone(660,'square',0.18,0.3);
+    spawnParticles(ballX,ballY,'#00ff88',14);
+    ballVX=2+Math.random()*2;ballVY=-3.5-Math.random()*2;
+    if(pitchTimeout)clearTimeout(pitchTimeout);
+    pitchTimeout=setTimeout(()=>{throwing=false;pitchTimeout=setTimeout(throwPitch,500);},900);
+  }else{
+    combo=0;power=Math.max(0,power-8);
+    showResult('&#10060; MISS','#ff4444');
+    playTone(130,'sawtooth',0.25,0.25);
+    if(pitchTimeout)clearTimeout(pitchTimeout);
+    pitchTimeout=setTimeout(()=>{throwing=false;pitchTimeout=setTimeout(throwPitch,500);},600);
+  }
+  updateDisps();
+  document.getElementById('powerFill').style.width=power+'%';
+}
+
+function showResult(txt,col){
+  const el=document.getElementById('resultFlash');
+  el.innerHTML=txt;el.style.color=col;el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0,950);
+}
+function showCombo(txt){
+  const el=document.getElementById('comboDisp');
+  el.textContent=txt;el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0,1100);
+}
+function spawnParticles(x,y,col,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=2+Math.random()*6;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,col,r:2+Math.random()*4});
+  }
+}
+function endGame(){
+  throwing=false;canSwing=false;
+  if(score>best){best=score;localStorage.setItem('bb_best',best);}
+  const name=localStorage.getItem('visitorName')||'Player';
+  if(fbDb){try{fbDb.ref('leaderboard/baseball').push({name,score,diff:DIFF_NAMES[diff],date:Date.now()});}catch(e){}}
+  document.getElementById('finalScore').innerHTML='Score: <b>'+score+'</b> &nbsp; Best: <b>'+best+'</b><br><span style="color:#aaa;font-size:13px">'+name+'</span>';
+  document.getElementById('finalScore').style.display='block';
+  const ov=document.getElementById('overlay');
+  ov.querySelector('h2').innerHTML='&#127937; Game Over!';
+  ov.querySelector('p').textContent='Great batting! Play again?';
+  ov.style.display='flex';
+}
+
+document.getElementById('swingBtn').addEventListener('pointerdown',e=>{e.preventDefault();doSwing();});
+
+function drawField(){
+  const g=ctx.createLinearGradient(0,0,0,cv.height);
+  g.addColorStop(0,'#001133');g.addColorStop(0.55,'#002200');g.addColorStop(1,'#001100');
+  ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);
+  // Outfield
+  ctx.fillStyle='#1a5200';ctx.fillRect(0,190,cv.width,80);
+  // Infield dirt
+  ctx.fillStyle='#4a2a08';
+  ctx.beginPath();ctx.ellipse(260,310,200,120,0,0,Math.PI*2);ctx.fill();
+  // Foul lines
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PLATE_X,PLATE_Y);ctx.lineTo(20,50);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(PLATE_X,PLATE_Y);ctx.lineTo(480,80);ctx.stroke();
+  // Bases
+  function base(x,y){ctx.fillStyle='#fff';ctx.save();ctx.translate(x,y);ctx.rotate(0.785);ctx.fillRect(-7,-7,14,14);ctx.restore();}
+  base(220,150);base(300,120);base(380,150);
+  // Pitcher mound
+  ctx.fillStyle='#6a3a10';ctx.beginPath();ctx.ellipse(310,195,22,12,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#8a4a18';ctx.beginPath();ctx.ellipse(310,195,8,4,0,0,Math.PI*2);ctx.fill();
+  // Pitcher (tiny)
+  ctx.strokeStyle='#ffcc88';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(310,183,5,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(310,188);ctx.lineTo(310,200);ctx.stroke();
+  // Home plate
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(PLATE_X,PLATE_Y-12);ctx.lineTo(PLATE_X+11,PLATE_Y);ctx.lineTo(PLATE_X+8,PLATE_Y+8);ctx.lineTo(PLATE_X-8,PLATE_Y+8);ctx.lineTo(PLATE_X-11,PLATE_Y);ctx.closePath();ctx.fill();
+  // Batter
+  ctx.strokeStyle='#ffcc00';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(PLATE_X+18,PLATE_Y-50,9,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(PLATE_X+18,PLATE_Y-41);ctx.lineTo(PLATE_X+18,PLATE_Y-18);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(PLATE_X+18,PLATE_Y-18);ctx.lineTo(PLATE_X+8,PLATE_Y+2);ctx.moveTo(PLATE_X+18,PLATE_Y-18);ctx.lineTo(PLATE_X+28,PLATE_Y+2);ctx.stroke();
+  // Bat
+  ctx.strokeStyle='#cc6600';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(PLATE_X+18,PLATE_Y-36);ctx.lineTo(PLATE_X+52,PLATE_Y-62);ctx.stroke();
+  ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(PLATE_X+52,PLATE_Y-62);ctx.lineTo(PLATE_X+68,PLATE_Y-75);ctx.stroke();
+}
+
+function loop(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  drawField();
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.25;p.life-=0.04;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // Ball
+  if(throwing){
+    ballX+=ballVX;ballY+=ballVY;
+    ballVY+=0.06;
+    if(ballX>-20&&ballX<510){
+      // Shadow
+      ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(ballX,198,9,4,0,0,Math.PI*2);ctx.fill();
+      // Glow when near plate
+      const dx=ballX-PLATE_X,dy=ballY-PLATE_Y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<80){ctx.shadowColor='#ffff00';ctx.shadowBlur=d<40?20:10;}
+      // Ball
+      ctx.fillStyle='#f0f0f0';ctx.beginPath();ctx.arc(ballX,ballY,13,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#cc3333';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(ballX,ballY,13,0.4,1.2);ctx.stroke();
+      ctx.beginPath();ctx.arc(ballX,ballY,13,Math.PI+0.4,Math.PI+1.2);ctx.stroke();
+      ctx.shadowBlur=0;
+      // Sweet zone ring
+      if(canSwing&&!swung&&d<90){
+        const col=d<38?'#ffff00':d<78?'#00ff88':'#ff4444';
+        ctx.strokeStyle=col;ctx.lineWidth=2;ctx.globalAlpha=0.55;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath();ctx.arc(PLATE_X,PLATE_Y,d,0,Math.PI*2);ctx.stroke();
+        ctx.setLineDash([]);ctx.globalAlpha=1;
+      }
+    }
+  }
+  animId=requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

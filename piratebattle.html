@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pirate Battle - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; }
+    h1 { font-size: 22px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen, #upgrade-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 0; }
+    #end-screen, #upgrade-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 500px; }
+    #battle-canvas { width: 100%; max-width: 480px; height: 220px; border: 2px solid #ff6666; border-radius: 8px; background: #001a33; display: block; cursor: pointer; touch-action: manipulation; }
+    .bar-row { display: flex; align-items: center; gap: 6px; font-size: 12px; width: 100%; }
+    .bar-bg { flex:1; height: 14px; background: #330000; border-radius: 6px; overflow: hidden; border: 1px solid #550000; }
+    .bar-fill { height:100%; border-radius:6px; transition: width 0.4s; }
+    #hud { background: #220000; border: 1px solid #ff6666; border-radius: 8px; padding: 8px; width: 100%; display: flex; flex-direction: column; gap: 5px; }
+    #hud-top { display: flex; justify-content: space-between; font-size: 13px; color: #ffcc00; flex-wrap: wrap; gap: 4px; }
+    #action-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; width: 100%; }
+    .action-btn { background: #3a0000; border: 2px solid #ff6666; border-radius: 10px; color: white; font-size: 15px; padding: 10px 16px; cursor: pointer; font-weight: bold; flex: 1; min-width: 100px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: all 0.1s; }
+    .action-btn:active { filter: brightness(1.5); transform: scale(0.96); }
+    .action-btn.cooling { opacity: 0.5; cursor: not-allowed; }
+    #msg { font-size: 13px; color: #ffcc88; text-align: center; min-height: 18px; width: 100%; padding: 2px 6px; }
+    #aim-indicator { position: absolute; width: 4px; height: 30px; background: yellow; border-radius: 2px; top: 50%; transform: translateY(-50%); transition: left 0.05s linear; pointer-events: none; }
+    #canvas-wrap { position: relative; width: 100%; max-width: 480px; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px; font-size: 13px; color: #ffcccc; line-height: 1.6; width: 100%; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 130px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    .upgrade-card { background: #2a0000; border: 2px solid #ff6666; border-radius: 10px; padding: 12px; cursor: pointer; width: 100%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .upgrade-card:active { filter: brightness(1.4); }
+    .upgrade-card h3 { color: yellow; margin-bottom: 4px; }
+    .upgrade-card p { font-size: 13px; color: #ffcccc; }
+    .loot-item { display: inline-block; font-size: 22px; animation: floatUp 1.5s ease-out forwards; }
+    @keyframes floatUp { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-40px);opacity:0} }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:36px"></div>
+  <h1>🏴‍☠️ Pirate Battle</h1>
+  <div class="info-box">
+    ⚓ Your ship vs 8 enemy ships!<br>
+    🎯 Tap FIRE when the aim is lined up with the enemy ship!<br>
+    ⚡ Tap DODGE to duck enemy cannonballs!<br>
+    🪙 Collect loot between battles to upgrade your cannon!<br>
+    💥 Sink all 8 ships to rule the seas!
+  </div>
+  <div id="lb-list"></div>
+  <button class="btn" onclick="startGame()">⚓ Set Sail!</button>
+</div>
+
+<div id="game-area">
+  <div style="height:44px"></div>
+  <h1>🏴‍☠️ Pirate Battle</h1>
+  <div id="hud">
+    <div class="bar-row">🚢 Your Ship <div class="bar-bg"><div class="bar-fill" id="player-hp-fill" style="background:linear-gradient(90deg,#cc4400,#ff8800)"></div></div> <span id="player-hp-txt">100/100</span></div>
+    <div class="bar-row">☠️ Enemy <div class="bar-bg"><div class="bar-fill" id="enemy-hp-fill" style="background:linear-gradient(90deg,#006600,#00cc44)"></div></div> <span id="enemy-hp-txt">50/50</span></div>
+    <div id="hud-top">
+      <span>🌊 Battle <span id="battle-num">1</span>/8</span>
+      <span>💰 Gold: <span id="gold">0</span></span>
+      <span>💥 DMG: <span id="dmg-stat">10</span></span>
+      <span>⚡ Rate: <span id="rate-stat">1</span></span>
+      <span>🌀 Spread: <span id="spread-stat">1</span></span>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="battle-canvas" width="480" height="220"></canvas>
+  </div>
+  <div id="msg">Fire your cannon at the right moment!</div>
+  <div id="action-bar">
+    <button class="action-btn" id="fire-btn" onclick="fireCannon()">💥 FIRE!</button>
+    <button class="action-btn" id="dodge-btn" onclick="doDodge()">⚡ DODGE!</button>
+  </div>
+  <button class="btn" style="padding:6px 12px;font-size:13px;margin-top:4px" onclick="goHome()">🏠 Quit</button>
+</div>
+
+<div id="upgrade-screen">
+  <div style="height:44px"></div>
+  <h1>🪙 Loot & Upgrade!</h1>
+  <div id="loot-msg" class="info-box" style="text-align:center"></div>
+  <div id="upgrade-options"></div>
+  <button class="btn" onclick="continueToNextBattle()">⚓ Next Battle!</button>
+</div>
+
+<div id="end-screen">
+  <div style="height:44px"></div>
+  <h1 id="end-title">🏴‍☠️ Sail Complete!</h1>
+  <div id="end-msg" class="info-box" style="text-align:center"></div>
+  <div id="lb-list-end"></div>
+  <button class="btn" onclick="startGame()">▶️ Play Again</button>
+  <button class="btn" onclick="goHome()">🏠 Home</button>
+</div>
+
+<script>
+const FBCONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try { fbApp = firebase.initializeApp(FBCONFIG, 'lb_piratebattle'); fbDb = firebase.database(fbApp); } catch(e){}
+const GAME_ID = 'piratebattle';
+const playerName = () => localStorage.getItem('visitorName') || 'Player';
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, type='square', vol=0.25) {
+  try { const a=getAudio(); const o=a.createOscillator(); const g=a.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+
+const canvas = () => document.getElementById('battle-canvas');
+const ctx = () => canvas().getContext('2d');
+let C, CX;
+
+let battleNum=1, playerHp=100, maxPlayerHp=100, enemyHp=50, maxEnemyHp=50;
+let gold=0, score=0;
+let cannon = { dmg:10, rate:1, spread:1 }; // spread = num cannonballs
+let aimX=0, aimDir=1, aimSpeed=3;
+let projectiles=[], enemyProjectiles=[], lootItems=[];
+let dodging=false, dodgeTimer=0, fireCooldown=0, enemyFireTimer=0;
+let animFrame=null, lastTime=0, gameRunning=false;
+let shipY=110, enemyShipY=110, playerBob=0, enemyBob=0;
+let explosions=[];
+
+const ENEMY_CONFIGS = [
+  { name:'Rusty Rowboat', hp:40, atk:8, speed:2.5 },
+  { name:'Sea Scoundrel', hp:60, atk:10, speed:2.8 },
+  { name:'Corsair\'s Pride', hp:80, atk:12, speed:3 },
+  { name:'Skull Frigate', hp:100, atk:15, speed:3.2 },
+  { name:'The Black Squid', hp:120, atk:18, speed:3.4 },
+  { name:'Iron Cannon', hp:150, atk:20, speed:3.6 },
+  { name:'Storm Raider', hp:180, atk:22, speed:3.8 },
+  { name:'Kraken\'s Claw', hp:220, atk:25, speed:4 },
+];
+
+function startGame() {
+  battleNum=1; playerHp=100; maxPlayerHp=100; gold=0; score=0;
+  cannon = { dmg:10, rate:1, spread:1 };
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('upgrade-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  loadBattle(battleNum);
+  loadLeaderboard(document.getElementById('lb-list'));
+}
+
+function loadBattle(n) {
+  const cfg = ENEMY_CONFIGS[n-1];
+  enemyHp = cfg.hp; maxEnemyHp = cfg.hp;
+  projectiles=[]; enemyProjectiles=[]; lootItems=[]; explosions=[];
+  aimX=0; aimDir=1; aimSpeed=cfg.speed;
+  fireCooldown=0; dodging=false; dodgeTimer=0;
+  enemyFireTimer = 80 - n*4;
+  gameRunning = true;
+  updateHUD();
+  showMsg(`Battle ${n}/8 — ${cfg.name} spotted! 💀`);
+  C = document.getElementById('battle-canvas');
+  CX = C.getContext('2d');
+  cancelAnimationFrame(animFrame);
+  lastTime = performance.now();
+  animFrame = requestAnimationFrame(loop);
+}
+
+function loop(ts) {
+  if (!gameRunning) return;
+  const dt = Math.min(60, ts - lastTime) / 16;
+  lastTime = ts;
+  update(dt);
+  draw();
+  animFrame = requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  // Aim oscillates
+  aimX += aimDir * aimSpeed * dt;
+  const cw = C.width;
+  if (aimX > cw * 0.85) { aimX = cw * 0.85; aimDir = -1; }
+  if (aimX < cw * 0.05) { aimX = cw * 0.05; aimDir = 1; }
+  // Ship bob
+  playerBob = Math.sin(ts/600)*4;
+  enemyBob = Math.sin(ts/700+1)*4;
+  // Projectiles
+  projectiles = projectiles.filter(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 0.2*dt; return p.x < cw && p.y < C.height && p.y > 0; });
+  enemyProjectiles = enemyProjectiles.filter(p => {
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 0.15*dt;
+    // Hit player?
+    const playerX = cw*0.15, pyY = C.height*0.6 + playerBob;
+    if (p.x < playerX+30 && p.x > playerX-30 && p.y > pyY-20 && p.y < pyY+20) {
+      if (!dodging) {
+        playerHp -= ENEMY_CONFIGS[battleNum-1].atk * 0.4;
+        beep(200,0.2,'sawtooth');
+        explosions.push({x:playerX,y:pyY,r:0,max:25,col:'#ff4400'});
+        updateHUD();
+        if (playerHp<=0) { endGame(false); return false; }
+      }
+      return false;
+    }
+    return p.x > 0 && p.y < C.height;
+  });
+  // Check player cannonballs hitting enemy
+  const enemyX = cw*0.82, eyY = C.height*0.45 + enemyBob;
+  projectiles = projectiles.filter(p => {
+    if (p.x > enemyX-35 && p.x < enemyX+35 && p.y > eyY-30 && p.y < eyY+30) {
+      enemyHp -= p.dmg;
+      explosions.push({x:enemyX,y:eyY,r:0,max:30,col:'#ffaa00'});
+      beep(400,0.15,'square');
+      updateHUD();
+      if (enemyHp<=0) { battleWon(); return false; }
+      return false;
+    }
+    return true;
+  });
+  // Enemy fires
+  enemyFireTimer -= dt;
+  if (enemyFireTimer <= 0) {
+    const spd = 3 + battleNum*0.3;
+    const spread = battleNum > 5 ? 3 : battleNum > 3 ? 2 : 1;
+    for (let i=0;i<spread;i++) {
+      enemyProjectiles.push({ x: cw*0.75, y: C.height*0.45+enemyBob, vx:-spd, vy:(Math.random()-0.5)*2, dmg:5 });
+    }
+    beep(300,0.08,'sawtooth',0.15);
+    enemyFireTimer = 60 + Math.random()*40 - battleNum*2;
+  }
+  // Dodge timer
+  if (dodging) { dodgeTimer -= dt; if (dodgeTimer<=0) { dodging=false; shipY=110; } }
+  // Cooldown
+  if (fireCooldown > 0) fireCooldown -= dt;
+  // Explosions
+  explosions = explosions.filter(e => { e.r += 1.5*dt; return e.r < e.max; });
+  // Loot float
+  lootItems = lootItems.filter(l => { l.life -= dt; return l.life > 0; });
+}
+
+function draw() {
+  const cw = C.width, ch = C.height;
+  CX.clearRect(0,0,cw,ch);
+  // Sky/sea gradient
+  const sky = CX.createLinearGradient(0,0,0,ch);
+  sky.addColorStop(0,'#000033'); sky.addColorStop(0.6,'#001a4a'); sky.addColorStop(0.6,'#002244'); sky.addColorStop(1,'#003366');
+  CX.fillStyle = sky; CX.fillRect(0,0,cw,ch);
+  // Waves
+  CX.fillStyle='#004488';
+  for (let i=0;i<6;i++) {
+    CX.beginPath();
+    const wy = ch*0.6 + Math.sin(Date.now()/800+i)*4;
+    CX.ellipse(i*(cw/5)+((Date.now()/50)%(cw/5)), wy, 40, 8, 0, 0, Math.PI*2);
+    CX.fill();
+  }
+  // Stars
+  CX.fillStyle='rgba(255,255,200,0.7)';
+  for (let i=0;i<20;i++) { const sx=(i*113)%cw, sy=(i*71)%ch*0.55; CX.beginPath(); CX.arc(sx,sy,1,0,Math.PI*2); CX.fill(); }
+  // Moon
+  CX.fillStyle='#ffffcc'; CX.beginPath(); CX.arc(cw*0.85,30,16,0,Math.PI*2); CX.fill();
+  CX.fillStyle='#000033'; CX.beginPath(); CX.arc(cw*0.87,28,13,0,Math.PI*2); CX.fill();
+  // Player ship
+  drawShip(CX, cw*0.12, ch*0.6+playerBob, false, dodging);
+  // Enemy ship
+  drawShip(CX, cw*0.82, ch*0.45+enemyBob, true);
+  // Aim indicator
+  const aimPct = aimX / cw;
+  CX.fillStyle = `hsl(${60+aimPct*120},100%,60%)`;
+  CX.fillRect(aimX-2, ch*0.35, 4, 30);
+  // Cannonballs
+  for (const p of projectiles) { CX.fillStyle='#888'; CX.beginPath(); CX.arc(p.x,p.y,5,0,Math.PI*2); CX.fill(); }
+  for (const p of enemyProjectiles) { CX.fillStyle='#cc4400'; CX.beginPath(); CX.arc(p.x,p.y,5,0,Math.PI*2); CX.fill(); }
+  // Explosions
+  for (const e of explosions) {
+    CX.globalAlpha = 1 - e.r/e.max;
+    CX.fillStyle = e.col; CX.beginPath(); CX.arc(e.x,e.y,e.r,0,Math.PI*2); CX.fill();
+    CX.globalAlpha=1;
+  }
+  // Loot
+  for (const l of lootItems) { CX.globalAlpha = l.life/60; CX.font='20px serif'; CX.fillText(l.emoji, l.x, l.y - (60-l.life)*0.5); CX.globalAlpha=1; }
+}
+
+function drawShip(ctx2, x, y, flipped, ducking=false) {
+  ctx2.save();
+  if (flipped) { ctx2.scale(-1,1); x=-x; }
+  const dy = ducking ? 10 : 0;
+  // Hull
+  ctx2.fillStyle='#5a3000'; ctx2.beginPath(); ctx2.moveTo(x-40,y+dy+10); ctx2.lineTo(x+40,y+dy+10); ctx2.lineTo(x+35,y+dy+25); ctx2.lineTo(x-35,y+dy+25); ctx2.closePath(); ctx2.fill();
+  ctx2.strokeStyle='#8b5900'; ctx2.lineWidth=2; ctx2.stroke();
+  // Cabin
+  ctx2.fillStyle='#7a4500'; ctx2.fillRect(x-15,y+dy-5,30,15);
+  // Mast
+  ctx2.fillStyle='#6b3c00'; ctx2.fillRect(x-3,y+dy-35,6,30);
+  // Sail
+  ctx2.fillStyle='#ffffee'; ctx2.beginPath(); ctx2.moveTo(x-2,y+dy-33); ctx2.lineTo(x-2+30,y+dy-18); ctx2.lineTo(x-2,y+dy-8); ctx2.closePath(); ctx2.fill();
+  ctx2.strokeStyle='#999'; ctx2.stroke();
+  // Skull flag
+  ctx2.font='12px serif'; ctx2.fillText('🏴‍☠️',x-6,y+dy-36);
+  // Cannon
+  ctx2.fillStyle='#333'; ctx2.fillRect(x+20,y+dy,18,8); ctx2.fillRect(x+36,y+dy+1,8,6);
+  ctx2.restore();
+}
+
+function fireCannon() {
+  if (!gameRunning) return;
+  if (fireCooldown > 0) { showMsg('Cannon reloading... wait!'); return; }
+  // Accuracy zone: near enemy ship (x > 60% of canvas)
+  const pct = aimX / C.width;
+  const hit = pct > 0.65 && pct < 0.95;
+  const shots = cannon.spread;
+  for (let i=0;i<shots;i++) {
+    const spread_offset = (i - (shots-1)/2) * 0.04;
+    projectiles.push({ x:C.width*0.2, y:C.height*0.6+playerBob, vx:6, vy:-2+spread_offset*shots, dmg: hit ? cannon.dmg : cannon.dmg*0.3 });
+  }
+  beep(300,0.15,'sawtooth');
+  fireCooldown = 40 / cannon.rate;
+  if (hit) { showMsg('💥 Direct hit!'); beep(500,0.1,'square'); }
+  else showMsg('💨 Missed! Aim for the highlighted zone!');
+}
+
+function doDodge() {
+  if (!gameRunning) return;
+  if (dodging) { showMsg('Already dodging!'); return; }
+  dodging = true; dodgeTimer = 45; shipY = 130;
+  beep(600,0.1,'sine');
+  showMsg('⚡ Dodging!');
+}
+
+function battleWon() {
+  gameRunning = false;
+  beep(700,0.1); beep(900,0.2,'sine');
+  const loot = 20 + battleNum*10;
+  gold += loot; score += 100 + battleNum*50;
+  lootItems.push({emoji:'🪙',x:C.width*0.5,y:C.height*0.4,life:60});
+  lootItems.push({emoji:'💎',x:C.width*0.45,y:C.height*0.45,life:50});
+  showMsg(`💀 Enemy sunk! +${loot} gold!`);
+  if (battleNum >= 8) { setTimeout(()=>endGame(true),1000); return; }
+  setTimeout(showUpgrade, 1200);
+}
+
+function showUpgrade() {
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('upgrade-screen').style.display='flex';
+  document.getElementById('loot-msg').innerHTML = `⚓ Battle ${battleNum} won!<br>Gold: <b style="color:yellow">${gold}</b> 🪙<br>Choose your upgrade:`;
+  const opts = document.getElementById('upgrade-options');
+  opts.innerHTML = '';
+  const upgrades = [
+    { name:'💥 Better Cannonballs', desc:`Damage +5 (now ${cannon.dmg+5})`, apply:()=>cannon.dmg+=5 },
+    { name:'⚡ Faster Reload', desc:`Fire rate +1 (now ${cannon.rate+1}x)`, apply:()=>cannon.rate++ },
+    { name:'🌀 Spread Shot', desc:`Fire ${cannon.spread+1} cannonballs at once!`, apply:()=>cannon.spread++ },
+    { name:'❤️ Repair Ship', desc:`Restore 30 HP (now ${Math.min(maxPlayerHp,playerHp+30)})`, apply:()=>{playerHp=Math.min(maxPlayerHp,playerHp+30);} },
+  ].sort(()=>Math.random()-0.5).slice(0,3);
+  for (const u of upgrades) {
+    const d = document.createElement('div');
+    d.className='upgrade-card';
+    d.innerHTML=`<h3>${u.name}</h3><p>${u.desc}</p>`;
+    d.onclick=()=>{ u.apply(); gold-=10; continueToNextBattle(); };
+    opts.appendChild(d);
+  }
+}
+
+function continueToNextBattle() {
+  battleNum++;
+  document.getElementById('upgrade-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  loadBattle(battleNum);
+  updateHUD();
+}
+
+function endGame(won) {
+  cancelAnimationFrame(animFrame);
+  submitScore(score);
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  document.getElementById('end-title').textContent = won ? '🏆 You Rule the Seas!' : '💀 Ship Sunk!';
+  document.getElementById('end-msg').innerHTML = `Battle ${battleNum}/8<br>Score: <b style="color:yellow">${score}</b><br>Gold: ${gold} 🪙`;
+  loadLeaderboard(document.getElementById('lb-list-end'));
+  if (won) { beep(800,0.1); beep(1000,0.1); beep(1200,0.3,'sine'); }
+  else beep(200,0.5,'sawtooth');
+}
+
+function updateHUD() {
+  document.getElementById('player-hp-fill').style.width=(playerHp/maxPlayerHp*100)+'%';
+  document.getElementById('player-hp-txt').textContent=Math.max(0,Math.round(playerHp))+'/'+maxPlayerHp;
+  document.getElementById('enemy-hp-fill').style.width=(Math.max(0,enemyHp)/maxEnemyHp*100)+'%';
+  document.getElementById('enemy-hp-txt').textContent=Math.max(0,Math.round(enemyHp))+'/'+maxEnemyHp;
+  document.getElementById('battle-num').textContent=battleNum;
+  document.getElementById('gold').textContent=gold;
+  document.getElementById('dmg-stat').textContent=cannon.dmg;
+  document.getElementById('rate-stat').textContent=cannon.rate;
+  document.getElementById('spread-stat').textContent=cannon.spread;
+}
+function showMsg(m) { document.getElementById('msg').textContent=m; }
+function goHome() { cancelAnimationFrame(animFrame); gameRunning=false; document.getElementById('game-area').style.display='none'; document.getElementById('upgrade-screen').style.display='none'; document.getElementById('end-screen').style.display='none'; document.getElementById('start-screen').style.display='flex'; loadLeaderboard(document.getElementById('lb-list')); }
+function loadLeaderboard(el) { if(!fbDb||!el)return; fbDb.ref('leaderboard/'+GAME_ID).orderByChild('score').limitToLast(8).once('value',snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.reverse();el.innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>#${i+1} ${r.name}</span><span>${r.score}pts</span></div>`).join(''):'<div class="lb-row">No scores yet!</div>';}); }
+function submitScore(s) { if(!fbDb)return; fbDb.ref('leaderboard/'+GAME_ID).push({name:playerName(),score:s,ts:Date.now()}); }
+
+loadLeaderboard(document.getElementById('lb-list'));
+</script>
+</body>
+</html>

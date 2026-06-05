@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Surf's Up!</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a0000;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+h1{color:#ffff00;font-size:22px;margin:6px 0 2px;text-shadow:0 0 8px #ff0}
+canvas{border:3px solid #ff6666;border-radius:8px;max-width:100%;display:block;touch-action:none}
+.hb{position:fixed;top:8px;left:10px;z-index:20}
+.hb a{color:#ffff00;text-decoration:none;border:2px solid #ff6666;padding:4px 10px;border-radius:8px;font-size:13px;background:#1a0000}
+#controls{display:flex;gap:8px;margin-top:5px;justify-content:center}
+.sbtn{padding:14px 0;border-radius:12px;font-size:20px;font-weight:bold;cursor:pointer;touch-action:manipulation;outline:none;border:3px solid;min-width:110px;-webkit-tap-highlight-color:transparent}
+#leftBtn{background:#003388;border-color:#4488ff;color:#fff}
+#leftBtn:active{background:#0055bb;transform:scale(0.93)}
+#rightBtn{background:#880033;border-color:#ff4488;color:#fff}
+#rightBtn:active{background:#bb0055;transform:scale(0.93)}
+#jumpBtn{background:#004400;border-color:#00ff00;color:#fff;min-width:90px;font-size:16px}
+#jumpBtn:active{background:#006600;transform:scale(0.93)}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:10px;padding:10px}
+#overlay h2{color:#ffff00;font-size:28px;text-align:center}
+#overlay p{color:#fff;font-size:14px;text-align:center;max-width:310px;line-height:1.5}
+.btn{background:#8b0000;color:#ffff00;border:2px solid #ff6666;padding:10px 26px;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;margin:3px;touch-action:manipulation;outline:none}
+.btn:active{background:#cc0000;transform:scale(0.95)}
+#eventFlash{position:fixed;top:25%;left:50%;transform:translateX(-50%);font-size:34px;font-weight:bold;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:30;text-shadow:0 0 16px currentColor;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="hb"><a href="index.html">&#127968; Home</a></div>
+<h1>&#127940; Surf's Up!</h1>
+<canvas id="c" width="480" height="300"></canvas>
+<div id="controls">
+  <button class="sbtn" id="leftBtn">&#9664; LEFT</button>
+  <button class="sbtn" id="jumpBtn">&#11014; JUMP</button>
+  <button class="sbtn" id="rightBtn">RIGHT &#9654;</button>
+</div>
+<div id="eventFlash"></div>
+<div id="overlay">
+  <h2>&#127940; Surf's Up!</h2>
+  <p>Steer left/right to dodge obstacles and ride waves!<br>Tap <b>JUMP</b> to leap over rocks and sea creatures!<br>Collect <b>&#11088;</b> stars for points.<br>Ride in the <b>barrel</b> for bonus score!<br>Don't hit anything — you're endless surfing!</p>
+  <button class="btn" onclick="startGame()">&#127940; Drop In!</button>
+  <div id="finalScore" style="display:none;color:#ffff00;font-size:18px;text-align:center;margin-top:6px"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+const FB_CFG={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbDb=null;
+try{let app=firebase.apps.find(a=>a.name==='lb_surf')||firebase.initializeApp(FB_CFG,'lb_surf');fbDb=firebase.database(app);}catch(e){}
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=480,H=300;
+let audioCtx=null;
+function getAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return audioCtx;}
+function playTone(f,t,d,v){try{const a=getAudio();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v||0.3,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function playStar(){playTone(1200,'sine',0.1,0.3);setTimeout(()=>playTone(1500,'sine',0.1,0.25),80);}
+function playBarrel(){playTone(600,'sine',0.05,0.15);}
+function playCrash(){playTone(150,'sawtooth',0.35,0.4);setTimeout(()=>playTone(80,'sawtooth',0.25,0.3),200);}
+function playJump(){playTone(500,'sine',0.12,0.2);}
+
+let surferX=W/2,surferY=0,surferVY=0,onWave=true;
+let speed=3,score=0,best=parseInt(localStorage.getItem('sf_best')||'0');
+let running=false,animId=null;
+let frameCount=0;
+let obstacles=[],stars=[];
+let waveOffset=0;
+let barrelZone=null,inBarrel=false,barrelScore=0;
+let particles=[];
+let leftHeld=false,rightHeld=false;
+let hitCooldown=0,lives=3;
+let wipeTimer=0,wiping=false;
+
+function getWaveY(x,off){
+  return H*0.55+Math.sin((x+off)*0.015)*28+Math.sin((x+off)*0.028)*14;
+}
+
+function startGame(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('finalScore').style.display='none';
+  surferX=W/2;surferY=0;surferVY=0;onWave=true;
+  speed=3;score=0;lives=3;frameCount=0;
+  obstacles=[];stars=[];barrelZone=null;inBarrel=false;barrelScore=0;
+  particles=[];hitCooldown=0;wiping=false;wipeTimer=0;
+  running=true;
+  if(animId)cancelAnimationFrame(animId);
+  loop();
+}
+
+function doJump(){
+  getAudio();
+  if(!running||wiping)return;
+  if(onWave){
+    surferVY=-9;onWave=false;
+    playJump();
+  }
+}
+
+function spawnObstacle(){
+  const types=['rock','crab','shark'];
+  const t=types[Math.floor(Math.random()*types.length)];
+  const x=W+30+Math.random()*80;
+  const wy=getWaveY(x,waveOffset);
+  obstacles.push({x,y:wy,type:t,w:22,h:18,passed:false});
+}
+
+function spawnStar(){
+  const x=W+40+Math.random()*100;
+  const wy=getWaveY(x,waveOffset)-30-Math.random()*40;
+  stars.push({x,y:wy,collected:false,bob:Math.random()*Math.PI*2});
+}
+
+function spawnBarrel(){
+  barrelZone={x:W+60,w:120,active:true};
+}
+
+function makeParticles(x,y,col,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=1+Math.random()*5;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,col,r:2+Math.random()*3});
+  }
+}
+
+function showFlash(txt,col){
+  const el=document.getElementById('eventFlash');
+  el.textContent=txt;el.style.color=col;el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0,900);
+}
+
+function physics(){
+  if(!running)return;
+  frameCount++;
+  // Speed up over time
+  speed=3+frameCount*0.003;
+  waveOffset+=speed;
+  // Surfer horizontal
+  if(leftHeld&&!wiping)surferX=Math.max(30,surferX-3.5);
+  if(rightHeld&&!wiping)surferX=Math.min(W-30,surferX+3.5);
+  // Vertical: follow wave or jump physics
+  const wy=getWaveY(surferX,waveOffset);
+  if(onWave){
+    surferY=wy-24;
+  }else{
+    surferVY+=0.5;
+    surferY+=surferVY;
+    if(surferY>=wy-24){surferY=wy-24;surferVY=0;onWave=true;}
+  }
+  if(hitCooldown>0)hitCooldown--;
+  if(wiping){wipeTimer--;if(wipeTimer<=0){wiping=false;surferX=W/2;}}
+  // Spawn
+  if(frameCount%80===0)spawnObstacle();
+  if(frameCount%110===0)spawnStar();
+  if(frameCount%300===0&&!barrelZone)spawnBarrel();
+  // Move obstacles
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    o.x-=speed;
+    o.y=getWaveY(o.x,waveOffset);
+    if(o.x<-40){obstacles.splice(i,1);continue;}
+    if(!o.passed&&o.x<surferX)o.passed=true;
+    // Collision
+    if(!wiping&&hitCooldown===0){
+      const dx=surferX-o.x,dy=(surferY+12)-o.y;
+      if(Math.abs(dx)<22&&Math.abs(dy)<20&&!onWave===false||
+        (Math.abs(dx)<22&&Math.abs(dy)<22&&onWave)){
+        // Only hit if surfer on wave (not jumping over)
+        if(onWave||surferY+24>o.y-5){
+          lives--;hitCooldown=90;
+          makeParticles(surferX,surferY,'#ff4444',15);
+          showFlash(lives>0?'WIPEOUT! '+(lives)+'&#10084;':'WIPED OUT!','#ff4444');
+          playCrash();
+          wiping=true;wipeTimer=45;
+          if(lives<=0){endGame();return;}
+        }
+      }
+    }
+  }
+  // Stars
+  for(let i=stars.length-1;i>=0;i--){
+    const s=stars[i];
+    s.x-=speed;
+    s.bob+=0.1;
+    s.y+=Math.sin(s.bob)*0.3;
+    if(s.x<-20){stars.splice(i,1);continue;}
+    if(!s.collected&&Math.abs(surferX-s.x)<24&&Math.abs(surferY-s.y)<24){
+      s.collected=true;stars.splice(i,1);
+      score+=10;playStar();
+      makeParticles(s.x,s.y,'#ffff00',8);
+      showFlash('+10 ⭐','#ffff00');
+    }
+  }
+  // Barrel
+  if(barrelZone&&barrelZone.active){
+    barrelZone.x-=speed;
+    if(surferX>barrelZone.x&&surferX<barrelZone.x+barrelZone.w){
+      inBarrel=true;barrelScore++;score+=(frameCount%5===0?1:0);
+      if(frameCount%20===0){playBarrel();showFlash('BARREL! +1','#00ffff');}
+    }else{
+      if(inBarrel){showFlash('BARREL RIDE! +'+barrelScore,'#00ffff');inBarrel=false;barrelScore=0;}
+    }
+    if(barrelZone.x<-barrelZone.w){barrelZone=null;inBarrel=false;}
+  }
+  // Passive score
+  if(frameCount%30===0)score++;
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.2;p.life-=0.05;
+    if(p.life<=0)particles.splice(i,1);
+  }
+}
+
+function draw(){
+  // Sky
+  const sg=ctx.createLinearGradient(0,0,0,H);
+  sg.addColorStop(0,'#00aaff');sg.addColorStop(0.5,'#0066cc');sg.addColorStop(1,'#003388');
+  ctx.fillStyle=sg;ctx.fillRect(0,0,W,H);
+  // Sun
+  ctx.fillStyle='#ffff88';ctx.shadowColor='#ffff00';ctx.shadowBlur=30;
+  ctx.beginPath();ctx.arc(W-60,45,28,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Clouds
+  function cloud(x,y,s){
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    for(const [dx,dy,r] of [[0,0,s],[s*0.7,s*0.2,s*0.75],[-s*0.65,s*0.15,s*0.7],[0,s*0.35,s*0.65]])
+      {ctx.beginPath();ctx.arc(x+dx,y+dy,r,0,Math.PI*2);ctx.fill();}
+  }
+  cloud(80-(frameCount*0.3)%380,35,20);cloud(280-(frameCount*0.2)%400,55,15);
+  // Barrel zone
+  if(barrelZone&&barrelZone.active){
+    const bx=barrelZone.x,bw=barrelZone.w;
+    const gy=ctx.createLinearGradient(bx,0,bx+bw,0);
+    gy.addColorStop(0,'rgba(0,255,255,0)');gy.addColorStop(0.5,'rgba(0,255,255,0.18)');gy.addColorStop(1,'rgba(0,255,255,0)');
+    ctx.fillStyle=gy;
+    ctx.fillRect(bx,H*0.3,bw,H*0.5);
+    ctx.strokeStyle='rgba(0,255,255,0.5)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.ellipse(bx+bw/2,H*0.55,bw/2,60,0,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='rgba(0,255,255,0.8)';ctx.font='bold 13px Arial';ctx.textAlign='center';
+    ctx.fillText('BARREL',bx+bw/2,H*0.4);
+  }
+  // Wave (multiple layers)
+  for(let layer=0;layer<4;layer++){
+    const off=layer*15;const alpha=0.12+layer*0.08;
+    ctx.beginPath();
+    ctx.moveTo(0,H);
+    for(let x=0;x<=W;x+=4){
+      const y=getWaveY(x,waveOffset+off*8)-layer*8;
+      ctx.lineTo(x,y);
+    }
+    ctx.lineTo(W,H);ctx.closePath();
+    const wc=ctx.createLinearGradient(0,H*0.4,0,H);
+    wc.addColorStop(0,`rgba(0,${120+layer*30},${200+layer*20},${0.7-layer*0.1})`);
+    wc.addColorStop(1,`rgba(0,${80+layer*20},${160+layer*20},0.9)`);
+    ctx.fillStyle=wc;ctx.fill();
+  }
+  // Wave crest foam
+  ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,getWaveY(0,waveOffset));
+  for(let x=4;x<=W;x+=4)ctx.lineTo(x,getWaveY(x,waveOffset));
+  ctx.stroke();
+  // Obstacles
+  for(const o of obstacles){
+    if(o.type==='rock'){
+      ctx.fillStyle='#6a6a6a';ctx.beginPath();ctx.ellipse(o.x,o.y-5,16,12,0.2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#888';ctx.beginPath();ctx.ellipse(o.x-4,o.y-10,10,8,-0.2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();ctx.ellipse(o.x,o.y+5,18,5,0,0,Math.PI);ctx.fill();
+    }else if(o.type==='crab'){
+      ctx.font='22px Arial';ctx.textAlign='center';ctx.fillText('🦀',o.x,o.y+4);
+    }else{
+      ctx.font='22px Arial';ctx.textAlign='center';ctx.fillText('🦈',o.x,o.y+2);
+    }
+  }
+  // Stars
+  for(const s of stars){
+    ctx.font='20px Arial';ctx.textAlign='center';
+    ctx.fillText('⭐',s.x,s.y);
+  }
+  // Particles
+  for(const p of particles){
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r||3,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // Surfer
+  if(!wiping||hitCooldown%8<4){
+    ctx.save();ctx.translate(surferX,surferY);
+    // Lean based on direction
+    const lean=(leftHeld?-0.15:rightHeld?0.15:0);
+    ctx.rotate(lean);
+    drawSurfer();
+    ctx.restore();
+  }
+  // Spray particles on wave
+  if(onWave&&frameCount%6===0){
+    makeParticles(surferX,surferY+20,'rgba(200,240,255,0.6)',2);
+  }
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,28);
+  ctx.fillStyle='#ffff00';ctx.font='bold 14px Arial';ctx.textAlign='left';
+  ctx.fillText('Score: '+score,8,18);
+  ctx.fillStyle='#ff6666';ctx.textAlign='center';
+  let heartsStr='';for(let i=0;i<lives;i++)heartsStr+='❤️';for(let i=lives;i<3;i++)heartsStr+='🖤';
+  ctx.fillText(heartsStr,W/2,18);
+  ctx.fillStyle='#88ff88';ctx.textAlign='right';
+  ctx.fillText('Best: '+best,W-8,18);
+  if(inBarrel){
+    ctx.fillStyle='rgba(0,255,255,0.9)';ctx.font='bold 14px Arial';ctx.textAlign='center';
+    ctx.fillText('🏄 IN THE BARREL! +'+barrelScore,W/2,44);
+  }
+}
+
+function drawSurfer(){
+  // Board
+  ctx.fillStyle='#ff6600';
+  ctx.beginPath();ctx.ellipse(0,20,26,8,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#ffaa00';ctx.lineWidth=2;ctx.stroke();
+  // Fin
+  ctx.fillStyle='#cc4400';ctx.beginPath();ctx.moveTo(10,18);ctx.lineTo(20,28);ctx.lineTo(10,26);ctx.closePath();ctx.fill();
+  // Legs
+  ctx.strokeStyle='#3366aa';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(-8,16);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(8,16);ctx.stroke();
+  // Body
+  ctx.strokeStyle='#ff8800';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(0,-12);ctx.stroke();
+  // Arms (balance)
+  ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(-16,-10);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(16,-10);ctx.stroke();
+  // Head
+  ctx.fillStyle='#ffcc88';ctx.beginPath();ctx.arc(0,-20,10,0,Math.PI*2);ctx.fill();
+  // Hair/hat
+  ctx.fillStyle='#aaff00';ctx.beginPath();ctx.arc(0,-25,10,Math.PI,0);ctx.fill();
+  // Eyes
+  ctx.fillStyle='#111';ctx.beginPath();ctx.arc(-3,-21,2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(3,-21,2,0,Math.PI*2);ctx.fill();
+}
+
+function endGame(){
+  running=false;
+  if(animId)cancelAnimationFrame(animId);
+  if(score>best){best=score;localStorage.setItem('sf_best',best);}
+  const name=localStorage.getItem('visitorName')||'Player';
+  if(fbDb){try{fbDb.ref('leaderboard/surfing').push({name,score,date:Date.now()});}catch(e){}}
+  document.getElementById('finalScore').innerHTML='Score: <b>'+score+'</b> &nbsp; Best: <b>'+best+'</b><br><span style="color:#aaa;font-size:13px">'+name+'</span>';
+  document.getElementById('finalScore').style.display='block';
+  const ov=document.getElementById('overlay');
+  ov.querySelector('h2').innerHTML='&#127940; Wiped Out!';
+  ov.querySelector('p').textContent='Hang ten next time! Play again?';
+  ov.style.display='flex';
+}
+
+document.getElementById('leftBtn').addEventListener('pointerdown',e=>{e.preventDefault();getAudio();leftHeld=true;});
+document.getElementById('leftBtn').addEventListener('pointerup',()=>leftHeld=false);
+document.getElementById('leftBtn').addEventListener('pointercancel',()=>leftHeld=false);
+document.getElementById('rightBtn').addEventListener('pointerdown',e=>{e.preventDefault();getAudio();rightHeld=true;});
+document.getElementById('rightBtn').addEventListener('pointerup',()=>rightHeld=false);
+document.getElementById('rightBtn').addEventListener('pointercancel',()=>rightHeld=false);
+document.getElementById('jumpBtn').addEventListener('pointerdown',e=>{e.preventDefault();doJump();});
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft')leftHeld=true;
+  if(e.key==='ArrowRight')rightHeld=true;
+  if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();doJump();}
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft')leftHeld=false;
+  if(e.key==='ArrowRight')rightHeld=false;
+});
+
+function loop(){physics();draw();animId=requestAnimationFrame(loop);}
+</script>
+</body>
+</html>

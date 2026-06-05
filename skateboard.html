@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Skate Park</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1a0000;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+h1{color:#ffff00;font-size:22px;margin:6px 0 2px;text-shadow:0 0 8px #ff0}
+canvas{border:3px solid #ff6666;border-radius:8px;max-width:100%;display:block;touch-action:none}
+.hb{position:fixed;top:8px;left:10px;z-index:20}
+.hb a{color:#ffff00;text-decoration:none;border:2px solid #ff6666;padding:4px 10px;border-radius:8px;font-size:13px;background:#1a0000}
+#trickBtns{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap;justify-content:center}
+.tbtn{background:#330044;color:#ffff00;border:2px solid #aa00ff;padding:10px 18px;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;touch-action:manipulation;outline:none;min-width:80px}
+.tbtn:active{background:#660088;transform:scale(0.94)}
+#launchBtn{background:#004400;border-color:#00ff00;font-size:18px;padding:12px 36px;min-width:130px}
+#launchBtn:active{background:#006600}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:10px}
+#overlay h2{color:#ffff00;font-size:28px;text-align:center}
+#overlay p{color:#fff;font-size:14px;text-align:center;max-width:310px;line-height:1.5}
+.btn{background:#8b0000;color:#ffff00;border:2px solid #ff6666;padding:10px 26px;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;margin:3px;touch-action:manipulation;outline:none}
+.btn:active{background:#cc0000;transform:scale(0.95)}
+#trickFlash{position:fixed;top:25%;left:50%;transform:translateX(-50%);font-size:28px;font-weight:bold;pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:30;text-shadow:0 0 14px currentColor;white-space:nowrap;text-align:center}
+</style>
+</head>
+<body>
+<div class="hb"><a href="index.html">&#127968; Home</a></div>
+<h1>&#127954; Skate Park</h1>
+<canvas id="c" width="480" height="300"></canvas>
+<div id="trickBtns">
+  <button class="tbtn" id="launchBtn">&#129376; LAUNCH!</button>
+  <button class="tbtn" id="flipBtn" style="display:none">&#128260; FLIP</button>
+  <button class="tbtn" id="grabBtn" style="display:none">&#129309; GRAB</button>
+  <button class="tbtn" id="spinBtn" style="display:none">&#128260; SPIN</button>
+</div>
+<div id="trickFlash"></div>
+<div id="overlay">
+  <h2>&#127954; Skate Park</h2>
+  <p>Hit <b>LAUNCH</b> at the top of the ramp to go airborne!<br>While flying: tap <b>FLIP, GRAB, SPIN</b> for tricks.<br>Chain tricks for a combo multiplier!<br><b>60 seconds</b> to get the highest score!</p>
+  <button class="btn" onclick="startGame()">&#127954; Let's Skate!</button>
+  <div id="finalScore" style="display:none;color:#ffff00;font-size:18px;text-align:center;margin-top:6px"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+const FB_CFG={apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc",authDomain:"enders-games.firebaseapp.com",databaseURL:"https://enders-games-default-rtdb.firebaseio.com",projectId:"enders-games"};
+let fbDb=null;
+try{let app=firebase.apps.find(a=>a.name==='lb_skate')||firebase.initializeApp(FB_CFG,'lb_skate');fbDb=firebase.database(app);}catch(e){}
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=480,H=300;
+let audioCtx=null;
+function getAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return audioCtx;}
+function playTone(f,t,d,v){try{const a=getAudio();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v||0.3,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function playSkate(){playTone(120,'sawtooth',0.12,0.2);}
+function playTrick(){playTone(660,'square',0.1,0.25);setTimeout(()=>playTone(880,'square',0.1,0.2),80);}
+function playLand(){playTone(200,'square',0.08,0.3);playTone(100,'sawtooth',0.15,0.3);}
+function playWipeout(){playTone(150,'sawtooth',0.3,0.4);setTimeout(()=>playTone(80,'sawtooth',0.3,0.3),200);}
+
+// Ramp/terrain definition
+const RAMP_H=120,RAMP_W=180;
+const FLOOR_Y=H-40;
+// Left halfpipe: curve from floor up to ramp top
+function getRampY(x){
+  // Left ramp: x from 0 to RAMP_W
+  if(x<=RAMP_W){
+    const t=1-(x/RAMP_W);
+    return FLOOR_Y-RAMP_H*t*t;
+  }
+  // Flat section
+  if(x<=W-RAMP_W) return FLOOR_Y;
+  // Right ramp
+  const t=(x-(W-RAMP_W))/RAMP_W;
+  return FLOOR_Y-RAMP_H*t*t;
+}
+
+let skaterX=80,skaterY=FLOOR_Y,skaterVX=4,skaterVY=0;
+let onGround=true,airborne=false,wiping=false;
+let score=0,best=parseInt(localStorage.getItem('sk_best')||'0');
+let timeLeft=60,timerInterval=null,animId=null;
+let combo=0,comboMult=1,tricksDone=[],canTrick=false;
+let trickCooldowns={flip:0,grab:0,spin:0};
+let frameCount=0;
+let particles=[];
+let trailPoints=[];
+let wipeoutTimer=0;
+let skaterAngle=0;
+
+function startGame(){
+  document.getElementById('overlay').style.display='none';
+  score=0;combo=0;comboMult=1;tricksDone=[];canTrick=false;
+  skaterX=80;skaterY=FLOOR_Y;skaterVX=4;skaterVY=0;onGround=true;airborne=false;wiping=false;
+  wipeoutTimer=0;skaterAngle=0;particles=[];trailPoints=[];
+  timeLeft=60;
+  document.getElementById('launchBtn').style.display='';
+  document.getElementById('flipBtn').style.display='none';
+  document.getElementById('grabBtn').style.display='none';
+  document.getElementById('spinBtn').style.display='none';
+  if(timerInterval)clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{
+    timeLeft--;
+    if(timeLeft<=0){clearInterval(timerInterval);endGame();}
+  },1000);
+  if(animId)cancelAnimationFrame(animId);
+  loop();
+}
+
+function doLaunch(){
+  getAudio();
+  if(wiping)return;
+  if(!onGround&&!airborne)return;
+  if(airborne)return;
+  // Check if near ramp edge
+  const atLeft=skaterX<RAMP_W+20;
+  const atRight=skaterX>W-RAMP_W-20;
+  if(atLeft||atRight){
+    airborne=true;onGround=false;canTrick=true;
+    tricksDone=[];
+    skaterVY=-12-(atLeft?-1:1)*0;
+    skaterVX=(atLeft?6:-6);
+    trickCooldowns={flip:0,grab:0,spin:0};
+    document.getElementById('flipBtn').style.display='';
+    document.getElementById('grabBtn').style.display='';
+    document.getElementById('spinBtn').style.display='';
+    document.getElementById('launchBtn').style.display='none';
+    playTone(440,'square',0.15,0.3);
+  }
+}
+
+const TRICK_NAMES=['Kickflip','Heelflip','360 Flip'];
+const GRAB_NAMES=['Melon Grab','Indy Grab','Stalefish'];
+const SPIN_NAMES=['360','540','720'];
+let trickRandIdx={flip:0,grab:0,spin:0};
+
+function doTrick(type){
+  if(!airborne||wiping)return;
+  if(trickCooldowns[type]>0)return;
+  if(tricksDone.includes(type))return;
+  tricksDone.push(type);
+  trickCooldowns[type]=20;
+  combo++;
+  comboMult=Math.min(8,1+Math.floor(combo/2));
+  const pts=50*comboMult;
+  score+=pts;
+  let name='';
+  if(type==='flip'){trickRandIdx.flip=Math.floor(Math.random()*3);name=TRICK_NAMES[trickRandIdx.flip];}
+  else if(type==='grab'){trickRandIdx.grab=Math.floor(Math.random()*3);name=GRAB_NAMES[trickRandIdx.grab];}
+  else{trickRandIdx.spin=Math.floor(Math.random()*3);name=SPIN_NAMES[trickRandIdx.spin];}
+  showTrickFlash(name+(comboMult>1?' x'+comboMult:'')+'  +'+pts,'#ffff00');
+  playTrick();
+  spawnParticles(skaterX,skaterY,'#ff88ff',10);
+}
+
+function showTrickFlash(txt,col){
+  const el=document.getElementById('trickFlash');
+  el.innerHTML=txt;el.style.color=col;el.style.opacity=1;
+  setTimeout(()=>el.style.opacity=0,1000);
+}
+
+function spawnParticles(x,y,col,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=1+Math.random()*4;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,col});
+  }
+}
+
+function land(clean){
+  airborne=false;canTrick=false;
+  document.getElementById('launchBtn').style.display='';
+  document.getElementById('flipBtn').style.display='none';
+  document.getElementById('grabBtn').style.display='none';
+  document.getElementById('spinBtn').style.display='none';
+  if(clean){
+    const bonus=tricksDone.length>0?100*comboMult:0;
+    if(bonus>0){score+=bonus;showTrickFlash('CLEAN LAND! +'+bonus,'#00ff88');}
+    playLand();
+    skaterAngle=0;
+  }else{
+    // Wipeout
+    wiping=true;wipeoutTimer=90;combo=0;comboMult=1;
+    showTrickFlash('WIPEOUT!','#ff4444');
+    playWipeout();
+    spawnParticles(skaterX,skaterY,'#ff8800',20);
+  }
+  tricksDone=[];
+}
+
+function physics(){
+  if(!wiping){
+    skaterX+=skaterVX;
+    if(airborne){
+      skaterVY+=0.5;
+      skaterY+=skaterVY;
+      skaterAngle+=skaterVX>0?0.15:-0.15;
+      // Check landing
+      const gy=getRampY(skaterX)-20;
+      if(skaterY>=gy){
+        skaterY=gy;
+        onGround=true;
+        const goodLand=Math.abs(skaterVY)<15;
+        skaterVY=0;
+        skaterVX=skaterVX>0?5:-5;
+        land(goodLand);
+      }
+    }else{
+      onGround=true;
+      const gy=getRampY(skaterX)-20;
+      skaterY=gy;
+      // Adjust speed on ramp
+      if(skaterX<RAMP_W){
+        const slope=(getRampY(skaterX+1)-getRampY(skaterX));
+        skaterVX+=(-slope)*0.15;
+      }else if(skaterX>W-RAMP_W){
+        const slope=(getRampY(skaterX+1)-getRampY(skaterX));
+        skaterVX+=(-slope)*0.15;
+      }
+      skaterVX=Math.max(-10,Math.min(10,skaterVX));
+      if(Math.abs(skaterVX)<1.5)skaterVX=Math.sign(skaterVX)*1.5;
+      // Bounce off walls
+      if(skaterX<5){skaterX=5;skaterVX=Math.abs(skaterVX);}
+      if(skaterX>W-5){skaterX=W-5;skaterVX=-Math.abs(skaterVX);}
+    }
+    // Record trail
+    trailPoints.push({x:skaterX,y:skaterY,a:skaterAngle});
+    if(trailPoints.length>20)trailPoints.shift();
+    for(let k in trickCooldowns)if(trickCooldowns[k]>0)trickCooldowns[k]--;
+  }else{
+    wipeoutTimer--;
+    if(wipeoutTimer<=0){wiping=false;skaterX=W/2;skaterY=FLOOR_Y;skaterVX=4;skaterVY=0;skaterAngle=0;}
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.05;
+    if(p.life<=0)particles.splice(i,1);
+  }
+  frameCount++;
+}
+
+function drawScene(){
+  // Sky
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1a1a2e');g.addColorStop(1,'#2a1a3e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Background buildings
+  ctx.fillStyle='#2a1a3a';
+  for(let i=0;i<8;i++){
+    const bw=30+i*15,bh=40+i*20;
+    ctx.fillRect(i*65,H-40-bh,bw,bh);
+    // windows
+    ctx.fillStyle='rgba(255,220,80,0.4)';
+    for(let j=0;j<3;j++)for(let k=0;k<2;k++)
+      ctx.fillRect(i*65+4+k*14,H-40-bh+6+j*14,8,8);
+    ctx.fillStyle='#2a1a3a';
+  }
+  // Draw halfpipe
+  ctx.beginPath();
+  ctx.moveTo(0,H);
+  for(let x=0;x<=W;x+=2){
+    ctx.lineTo(x,getRampY(x));
+  }
+  ctx.lineTo(W,H);ctx.closePath();
+  const rg=ctx.createLinearGradient(0,FLOOR_Y-RAMP_H,0,FLOOR_Y);
+  rg.addColorStop(0,'#6a3a8a');rg.addColorStop(1,'#4a2a6a');
+  ctx.fillStyle=rg;ctx.fill();
+  ctx.strokeStyle='#aa66ff';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,getRampY(0));
+  for(let x=0;x<=W;x+=2)ctx.lineTo(x,getRampY(x));
+  ctx.stroke();
+  // Grip lines on ramp
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+  for(let i=0;i<20;i++){
+    const xx=i*26;ctx.beginPath();
+    ctx.moveTo(xx,getRampY(xx));ctx.lineTo(xx+10,getRampY(xx+10));ctx.stroke();
+  }
+  // Stars on flat section
+  ctx.fillStyle='#ff0';
+  for(let sx=RAMP_W+50;sx<W-RAMP_W-30;sx+=80){
+    ctx.font='18px Arial';ctx.textAlign='center';
+    ctx.fillText('⭐',sx,FLOOR_Y-5);
+  }
+  // Particles
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+  // Trail
+  if(!airborne)for(let i=1;i<trailPoints.length;i++){
+    const t=trailPoints[i];
+    ctx.globalAlpha=i/trailPoints.length*0.4;
+    ctx.fillStyle='#aa66ff';ctx.beginPath();ctx.arc(t.x,t.y+15,2,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // Skater
+  if(!wiping){
+    ctx.save();ctx.translate(skaterX,skaterY);ctx.rotate(airborne?skaterAngle:0);
+    drawSkater(0,0,airborne);
+    ctx.restore();
+  }else{
+    // Wipeout animation
+    ctx.save();ctx.translate(skaterX,skaterY);ctx.rotate(Math.sin(wipeoutTimer*0.4)*0.5);
+    drawSkater(0,0,false);ctx.restore();
+  }
+  // HUD
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(0,0,W,28);
+  ctx.fillStyle='#ffff00';ctx.font='bold 15px Arial';ctx.textAlign='left';
+  ctx.fillText('Score: '+score,8,18);
+  ctx.fillStyle='#00ffcc';ctx.textAlign='center';
+  ctx.fillText('Time: '+timeLeft+'s',W/2,18);
+  ctx.fillStyle='#ff88ff';ctx.textAlign='right';
+  ctx.fillText('Best: '+best,W-8,18);
+  if(comboMult>1){
+    ctx.fillStyle='#ffaa00';ctx.font='bold 13px Arial';ctx.textAlign='right';
+    ctx.fillText('x'+comboMult+' COMBO',W-8,32);
+  }
+  if(airborne){
+    ctx.fillStyle='rgba(255,255,0,0.7)';ctx.font='bold 13px Arial';ctx.textAlign='center';
+    ctx.fillText('AIRBORNE! Tap tricks!',W/2,50);
+  }
+}
+
+function drawSkater(x,y,air){
+  const sc=ctx.strokeStyle;
+  ctx.strokeStyle='#ffcc00';ctx.lineWidth=3;
+  // Head
+  ctx.beginPath();ctx.arc(x,y-34,8,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#ffcc88';ctx.fill();
+  // Helmet
+  ctx.fillStyle='#cc0000';ctx.beginPath();ctx.arc(x,y-38,8,Math.PI,0);ctx.fill();
+  // Body
+  ctx.strokeStyle='#4488ff';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(x,y-26);ctx.lineTo(x,y-8);ctx.stroke();
+  // Arms
+  ctx.beginPath();ctx.moveTo(x,y-24);ctx.lineTo(x-12,air?y-14:y-20);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y-24);ctx.lineTo(x+12,air?y-14:y-20);ctx.stroke();
+  // Legs
+  ctx.strokeStyle='#226622';
+  ctx.beginPath();ctx.moveTo(x,y-8);ctx.lineTo(x-8,y+4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y-8);ctx.lineTo(x+8,y+4);ctx.stroke();
+  // Board
+  ctx.strokeStyle='#888';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(x-18,y+5);ctx.lineTo(x+18,y+5);ctx.stroke();
+  ctx.fillStyle='#ff6600';ctx.fillRect(x-18,y+4,36,3);
+  ctx.fillStyle='#333';
+  ctx.beginPath();ctx.arc(x-12,y+8,3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(x+12,y+8,3,0,Math.PI*2);ctx.fill();
+}
+
+function endGame(){
+  airborne=false;wiping=false;
+  if(score>best){best=score;localStorage.setItem('sk_best',best);}
+  const name=localStorage.getItem('visitorName')||'Player';
+  if(fbDb){try{fbDb.ref('leaderboard/skateboard').push({name,score,date:Date.now()});}catch(e){}}
+  document.getElementById('finalScore').innerHTML='Score: <b>'+score+'</b> &nbsp; Best: <b>'+best+'</b><br><span style="color:#aaa;font-size:13px">'+name+'</span>';
+  document.getElementById('finalScore').style.display='block';
+  const ov=document.getElementById('overlay');
+  ov.querySelector('h2').innerHTML='&#127954; Time Up!';
+  ov.querySelector('p').textContent='Great run! Try to beat your best score!';
+  ov.style.display='flex';
+}
+
+document.getElementById('launchBtn').addEventListener('pointerdown',e=>{e.preventDefault();doLaunch();});
+document.getElementById('flipBtn').addEventListener('pointerdown',e=>{e.preventDefault();doTrick('flip');});
+document.getElementById('grabBtn').addEventListener('pointerdown',e=>{e.preventDefault();doTrick('grab');});
+document.getElementById('spinBtn').addEventListener('pointerdown',e=>{e.preventDefault();doTrick('spin');});
+
+function loop(){physics();drawScene();animId=requestAnimationFrame(loop);}
+</script>
+</body>
+</html>

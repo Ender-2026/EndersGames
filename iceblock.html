@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ice Slide - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; }
+    h1 { font-size: 22px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 420px; }
+    #hud { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 13px; color: #ffcc00; font-weight: bold; flex-wrap: wrap; gap: 4px; padding: 2px 4px; }
+    #grid-wrap { width: 100%; }
+    #ice-grid { display: grid; gap: 3px; width: 100%; touch-action: none; user-select: none; }
+    .cell { aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 2px solid #220000; background: #110000; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.12s; }
+    .cell.floor { background: #1a0a00; border-color: #3a1a00; }
+    .cell.wall { background: #0a0000; border-color: #150000; }
+    .cell.hole { background: #000a1a; border-color: #003366; animation: holePulse 1.5s infinite alternate; }
+    .cell.filled { background: #002244; border-color: #0066cc; }
+    .cell.ice { background: #aaddff44; border-color: #88ccff; }
+    .cell.selected { border-color: yellow; box-shadow: 0 0 10px yellow; }
+    .cell.ice-red { background: #ff440044; border-color: #ff4400; }
+    .cell.ice-blue { background: #0044ff44; border-color: #4488ff; }
+    .cell.ice-green { background: #00aa4444; border-color: #44cc44; }
+    .cell.hole-red { background: #ff000015; border-color: #ff4400; animation: holePulse 1.5s infinite alternate; }
+    .cell.hole-blue { background: #0000ff15; border-color: #4488ff; animation: holePulse 1.5s infinite alternate; }
+    .cell.hole-green { background: #00ff0015; border-color: #44cc44; animation: holePulse 1.5s infinite alternate; }
+    @keyframes holePulse { from{box-shadow:0 0 3px #0066ff} to{box-shadow:0 0 12px #0066ff} }
+    .cell.sliding { animation: slideAnim 0.15s ease-out; }
+    @keyframes slideAnim { 0%{transform:scale(1.15)} 100%{transform:scale(1)} }
+    #dir-btns { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+    .dir-btn { background: #330000; border: 2px solid #ff6666; border-radius: 8px; color: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .dir-btn:active { background: #660000; transform: scale(0.95); }
+    .dir-empty { background: transparent; border: none; }
+    #stars { font-size: 24px; letter-spacing: 2px; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px; font-size: 13px; color: #ffcccc; line-height: 1.6; width: 100%; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 130px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    #controls-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    #par-info { font-size: 12px; color: #ffaacc; text-align: center; }
+    #moves-count { font-size: 16px; font-weight: bold; color: #ffcc00; }
+    #undo-btn { background: #220022; border: 2px solid #cc44cc; border-radius: 8px; padding: 6px 12px; color: white; cursor: pointer; font-size: 14px; -webkit-tap-highlight-color: transparent; }
+    #undo-btn:active { filter: brightness(1.4); }
+    #level-select { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; max-height: 100px; overflow-y: auto; }
+    .lvl-btn { background: #220000; border: 1.5px solid #ff6666; border-radius: 6px; color: #ffcc00; padding: 4px 8px; font-size: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .lvl-btn.done { background: #003300; border-color: #00aa44; color: #88ff88; }
+    .lvl-btn.locked { opacity: 0.4; cursor: not-allowed; }
+    .lvl-btn.active { background: #660000; border-color: yellow; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:36px"></div>
+  <h1>🧊 Ice Slide</h1>
+  <div class="info-box">
+    Slide ice blocks 🧊 to fill all holes in the floor!<br>
+    Select a block, then tap a direction — it slides until it hits a wall!<br>
+    🎨 Colored blocks must match colored holes!<br>
+    Complete in fewer moves for more ⭐ stars!<br>
+    ↩️ Undo button available (3 uses per level)
+  </div>
+  <div id="level-select"></div>
+  <div id="lb-list"></div>
+  <button class="btn" id="start-btn" onclick="startGame(currentLevel)">🧊 Play!</button>
+</div>
+
+<div id="game-area">
+  <div style="height:44px"></div>
+  <h1>🧊 Ice Slide</h1>
+  <div id="hud">
+    <span>Level <span id="lvl-num">1</span>/20</span>
+    <div id="stars">⭐⭐⭐</div>
+    <span>⭐ <span id="score">0</span></span>
+    <span id="moves-count">Moves: <span id="moves">0</span></span>
+  </div>
+  <div id="par-info">Par: <span id="par">5</span> moves • Undo: <span id="undo-left">3</span></div>
+  <div id="grid-wrap"><div id="ice-grid"></div></div>
+  <div id="msg" style="font-size:13px;color:#ffcc88;text-align:center;min-height:18px">Select a block, then tap direction!</div>
+  <div id="controls-row">
+    <div id="dir-btns">
+      <div class="dir-empty"></div>
+      <div class="dir-btn" onclick="slideSelected('up')">▲</div>
+      <div class="dir-empty"></div>
+      <div class="dir-btn" onclick="slideSelected('left')">◀</div>
+      <div class="dir-btn dir-empty" style="font-size:14px;color:#ffcc00;cursor:pointer" onclick="resetLevel()">↺</div>
+      <div class="dir-btn" onclick="slideSelected('right')">▶</div>
+      <div class="dir-empty"></div>
+      <div class="dir-btn" onclick="slideSelected('down')">▼</div>
+      <div class="dir-empty"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <button id="undo-btn" onclick="undoMove()">↩️ Undo</button>
+      <button class="btn" style="padding:5px 10px;font-size:12px" onclick="resetLevel()">🔄 Reset</button>
+      <button class="btn" style="padding:5px 10px;font-size:12px" onclick="goHome()">🏠 Home</button>
+    </div>
+  </div>
+</div>
+
+<div id="end-screen">
+  <div style="height:44px"></div>
+  <h1 id="end-title">🧊 Level Complete!</h1>
+  <div id="end-msg" class="info-box" style="text-align:center"></div>
+  <div id="lb-list-end"></div>
+  <button class="btn" id="next-lvl-btn" onclick="nextLevel()">Next Level ➡️</button>
+  <button class="btn" onclick="goHome()">🏠 Home</button>
+</div>
+
+<script>
+const FBCONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try { fbApp = firebase.initializeApp(FBCONFIG, 'lb_iceblock'); fbDb = firebase.database(fbApp); } catch(e){}
+const GAME_ID = 'iceblock';
+const playerName = () => localStorage.getItem('visitorName') || 'Player';
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, type='sine', vol=0.2) {
+  try { const a=getAudio(); const o=a.createOscillator(); const g=a.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+
+// T = tile types: 0=empty(wall), 1=floor, 2=hole, 3=wall, 4=filled
+// B = block types: 0=none, 1=ice, 2=red, 3=blue, 4=green
+// Hole colors: 0=none, 1=any, 2=red, 3=blue, 4=green
+const EMPTY=0,FLOOR=1,HOLE=2,WALL=3;
+
+// 20 levels encoded as {size, tiles, blocks, holes, par}
+// tiles: 2D array, blocks: [{r,c,color}], holes: [{r,c,color}]
+const LEVELS = [
+  // Level 1: 4x4, simple
+  { size:4, par:3, tiles:[[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]], blocks:[{r:0,c:0,col:0}], holes:[{r:3,c:3,col:0}] },
+  { size:4, par:4, tiles:[[1,1,1,1],[1,3,3,1],[1,3,3,1],[1,1,1,1]], blocks:[{r:0,c:0,col:0},{r:0,c:3,col:0}], holes:[{r:3,c:0,col:0},{r:3,c:3,col:0}] },
+  { size:5, par:4, tiles:[[1,1,1,1,1],[1,3,1,3,1],[1,1,1,1,1],[1,3,1,3,1],[1,1,1,1,1]], blocks:[{r:0,c:0,col:0}], holes:[{r:4,c:4,col:0},{r:4,c:2,col:0}] },
+  { size:5, par:5, tiles:[[1,1,1,1,1],[1,1,1,1,1],[1,3,3,3,1],[1,1,1,1,1],[1,1,1,1,1]], blocks:[{r:0,c:1,col:1},{r:0,c:3,col:2}], holes:[{r:4,c:1,col:1},{r:4,c:3,col:2}] },
+  { size:5, par:5, tiles:[[1,1,1,1,1],[1,3,1,3,1],[1,1,1,1,1],[1,3,1,3,1],[1,1,1,1,1]], blocks:[{r:0,c:0,col:2},{r:0,c:4,col:3}], holes:[{r:4,c:4,col:2},{r:4,c:0,col:3}] },
+  { size:6, par:5, tiles:[[1,1,1,1,1,1],[1,3,1,1,3,1],[1,1,1,1,1,1],[1,1,1,1,1,1],[1,3,1,1,3,1],[1,1,1,1,1,1]], blocks:[{r:0,c:0,col:0},{r:0,c:5,col:0}], holes:[{r:5,c:0,col:0},{r:5,c:5,col:0},{r:5,c:2,col:0}] },
+  { size:6, par:6, tiles:[[1,1,1,1,1,1],[1,1,3,3,1,1],[1,1,1,1,1,1],[1,1,1,1,1,1],[1,1,3,3,1,1],[1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:5,col:2},{r:0,c:2,col:3}], holes:[{r:5,c:0,col:1},{r:5,c:5,col:2},{r:5,c:4,col:3}] },
+  { size:6, par:6, tiles:[[1,1,1,1,1,1],[1,3,1,1,3,1],[1,1,1,3,1,1],[1,1,3,1,1,1],[1,3,1,1,3,1],[1,1,1,1,1,1]], blocks:[{r:0,c:0,col:2},{r:0,c:3,col:3}], holes:[{r:5,c:5,col:2},{r:5,c:1,col:3}] },
+  { size:7, par:7, tiles:[[1,1,1,1,1,1,1],[1,3,1,1,1,3,1],[1,1,1,3,1,1,1],[1,1,3,1,3,1,1],[1,1,1,3,1,1,1],[1,3,1,1,1,3,1],[1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:0},{r:0,c:6,col:0},{r:0,c:3,col:0}], holes:[{r:6,c:0,col:0},{r:6,c:6,col:0},{r:6,c:3,col:0}] },
+  { size:7, par:8, tiles:[[1,1,1,1,1,1,1],[1,3,3,1,3,3,1],[1,3,1,1,1,3,1],[1,1,1,1,1,1,1],[1,3,1,1,1,3,1],[1,3,3,1,3,3,1],[1,1,1,1,1,1,1]], blocks:[{r:0,c:1,col:1},{r:0,c:5,col:2},{r:3,c:0,col:3}], holes:[{r:6,c:1,col:1},{r:6,c:5,col:2},{r:6,c:6,col:3}] },
+  { size:7, par:8, tiles:[[1,1,1,1,1,1,1],[1,3,1,3,1,3,1],[1,1,1,1,1,1,1],[1,3,1,3,1,3,1],[1,1,1,1,1,1,1],[1,3,1,3,1,3,1],[1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:6,col:2},{r:0,c:3,col:3},{r:6,c:0,col:0}], holes:[{r:6,c:6,col:1},{r:6,c:3,col:2},{r:3,c:6,col:3},{r:6,c:1,col:0}] },
+  { size:7, par:9, tiles:[[1,1,1,1,1,1,1],[1,1,3,1,3,1,1],[1,3,1,1,1,3,1],[1,1,1,1,1,1,1],[1,3,1,1,1,3,1],[1,1,3,1,3,1,1],[1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:6,col:2},{r:6,c:0,col:3},{r:6,c:6,col:0}], holes:[{r:3,c:0,col:1},{r:3,c:6,col:2},{r:0,c:3,col:3},{r:6,c:3,col:0}] },
+  { size:8, par:9, tiles:[[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,1],[1,1,1,1,1,1,1,1],[1,3,1,1,1,1,3,1],[1,1,1,1,1,1,1,1],[1,1,3,1,1,3,1,1],[1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:0},{r:0,c:7,col:0}], holes:[{r:7,c:7,col:0},{r:7,c:0,col:0},{r:7,c:3,col:0}] },
+  { size:8, par:10, tiles:[[1,1,1,1,1,1,1,1],[1,3,3,1,1,3,3,1],[1,3,1,1,1,1,3,1],[1,1,1,3,3,1,1,1],[1,1,1,3,3,1,1,1],[1,3,1,1,1,1,3,1],[1,3,3,1,1,3,3,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:7,col:2},{r:7,c:0,col:3},{r:3,c:0,col:0}], holes:[{r:7,c:7,col:1},{r:7,c:4,col:2},{r:0,c:4,col:3},{r:4,c:7,col:0}] },
+  { size:8, par:10, tiles:[[1,1,1,1,1,1,1,1],[1,3,1,1,1,1,3,1],[1,1,1,3,3,1,1,1],[1,1,3,1,1,3,1,1],[1,1,3,1,1,3,1,1],[1,1,1,3,3,1,1,1],[1,3,1,1,1,1,3,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:2},{r:0,c:4,col:3},{r:0,c:7,col:1}], holes:[{r:7,c:0,col:2},{r:7,c:4,col:3},{r:7,c:7,col:1}] },
+  { size:8, par:11, tiles:[[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,1],[1,1,1,1,1,1,1,1],[1,3,1,1,1,1,3,1],[1,3,1,1,1,1,3,1],[1,1,1,1,1,1,1,1],[1,1,3,1,3,1,3,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:7,col:2},{r:7,c:7,col:3},{r:7,c:0,col:0},{r:0,c:3,col:1}], holes:[{r:7,c:3,col:1},{r:3,c:7,col:2},{r:3,c:0,col:3},{r:4,c:0,col:0},{r:4,c:7,col:1}] },
+  { size:8, par:12, tiles:[[1,1,1,1,1,1,1,1],[1,3,3,1,1,3,3,1],[1,3,1,3,3,1,3,1],[1,1,3,1,1,3,1,1],[1,1,3,1,1,3,1,1],[1,3,1,3,3,1,3,1],[1,3,3,1,1,3,3,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:7,col:2},{r:7,c:0,col:3}], holes:[{r:7,c:7,col:1},{r:4,c:7,col:2},{r:4,c:0,col:3}] },
+  { size:8, par:12, tiles:[[1,1,1,1,1,1,1,1],[1,1,3,3,3,3,1,1],[1,3,1,1,1,1,3,1],[1,3,1,3,3,1,3,1],[1,3,1,3,3,1,3,1],[1,3,1,1,1,1,3,1],[1,1,3,3,3,3,1,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:2},{r:0,c:7,col:3},{r:7,c:0,col:1},{r:7,c:7,col:0}], holes:[{r:3,c:0,col:2},{r:3,c:7,col:3},{r:4,c:0,col:1},{r:4,c:7,col:0}] },
+  { size:8, par:13, tiles:[[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,3],[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,3],[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,3],[1,1,1,1,1,1,1,1],[1,3,1,3,1,3,1,3]], blocks:[{r:0,c:0,col:1},{r:0,c:2,col:2},{r:0,c:4,col:3},{r:0,c:6,col:0}], holes:[{r:7,c:0,col:1},{r:7,c:2,col:2},{r:7,c:4,col:3},{r:7,c:6,col:0}] },
+  { size:8, par:15, tiles:[[1,1,1,1,1,1,1,1],[1,3,1,3,3,1,3,1],[1,1,1,1,1,1,1,1],[1,3,1,3,3,1,3,1],[1,3,1,3,3,1,3,1],[1,1,1,1,1,1,1,1],[1,3,1,3,3,1,3,1],[1,1,1,1,1,1,1,1]], blocks:[{r:0,c:0,col:1},{r:0,c:7,col:2},{r:7,c:0,col:3},{r:7,c:7,col:0},{r:0,c:3,col:1},{r:7,c:3,col:2}], holes:[{r:4,c:0,col:1},{r:4,c:7,col:2},{r:3,c:7,col:3},{r:3,c:0,col:0},{r:4,c:4,col:1},{r:3,c:4,col:2}] },
+];
+
+const COL_NAMES = ['','white','red','blue','green'];
+const COL_CLASS = ['ice','ice','ice-red','ice-blue','ice-green'];
+const HOLE_CLASS = ['hole','hole','hole-red','hole-blue','hole-green'];
+const COL_EMOJI = ['🧊','🧊','🟥','🟦','🟩'];
+
+let currentLevel = 0, moves = 0, undoLeft = 3, score = 0;
+let tiles = [], blocks = [], holes = [];
+let selected = null, animating = false;
+let history = []; // for undo
+let levelsCompleted = JSON.parse(localStorage.getItem('ice_completed')||'[]');
+let totalScore = parseInt(localStorage.getItem('ice_score')||'0');
+
+function initLevelSelect() {
+  const el = document.getElementById('level-select');
+  el.innerHTML = '';
+  for (let i=0;i<20;i++) {
+    const b = document.createElement('button');
+    b.className = 'lvl-btn' + (levelsCompleted.includes(i)?' done':'') + (i===currentLevel?' active':'');
+    b.textContent = 'L'+(i+1);
+    b.onclick = ()=>{ currentLevel=i; document.getElementById('start-btn').textContent=`🧊 Play Level ${i+1}`; document.querySelectorAll('.lvl-btn').forEach((x,j)=>x.classList.toggle('active',j===i)); };
+    el.appendChild(b);
+  }
+}
+
+function startGame(lvl) {
+  currentLevel = lvl || 0;
+  moves = 0; undoLeft = 3; selected = null; history = [];
+  const lvlDef = LEVELS[currentLevel];
+  // Deep copy
+  tiles = lvlDef.tiles.map(r=>[...r]);
+  blocks = lvlDef.blocks.map(b=>({...b}));
+  holes = lvlDef.holes.map(h=>({...h}));
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  document.getElementById('lvl-num').textContent=currentLevel+1;
+  document.getElementById('par').textContent=lvlDef.par;
+  updateHUD();
+  renderGrid();
+  showMsg('Select a block, then tap a direction!');
+  loadLeaderboard(document.getElementById('lb-list'));
+}
+
+function renderGrid() {
+  const lvl = LEVELS[currentLevel];
+  const sz = lvl.size;
+  const el = document.getElementById('ice-grid');
+  el.style.gridTemplateColumns=`repeat(${sz},1fr)`;
+  el.innerHTML='';
+  for (let r=0;r<sz;r++) for(let c=0;c<sz;c++) {
+    const d = document.createElement('div');
+    d.className='cell';
+    const t = tiles[r][c];
+    // Check for hole
+    const hole = holes.find(h=>h.r===r&&h.c===c);
+    const block = blocks.find(b=>b.r===r&&b.c===c);
+    if (block) {
+      d.classList.add(COL_CLASS[block.col]);
+      d.textContent = COL_EMOJI[block.col];
+      if (selected && selected.r===r && selected.c===c) d.classList.add('selected');
+      d.addEventListener('click', ()=>selectBlock(r,c));
+      d.addEventListener('touchstart',(e)=>{e.preventDefault();selectBlock(r,c);},{passive:false});
+    } else if (hole) {
+      d.classList.add(HOLE_CLASS[hole.col]);
+      d.textContent = '🕳️';
+    } else if (t===WALL) {
+      d.classList.add('wall');
+      d.textContent = '🟫';
+    } else {
+      d.classList.add('floor');
+    }
+    el.appendChild(d);
+  }
+}
+
+function selectBlock(r, c) {
+  if (animating) return;
+  selected = {r, c};
+  beep(500,0.05,'sine',0.1);
+  renderGrid();
+  showMsg('Now tap a direction arrow!');
+}
+
+function slideSelected(dir) {
+  if (!selected || animating) { if(!selected) showMsg('Select a block first!'); return; }
+  const block = blocks.find(b=>b.r===selected.r&&b.c===selected.c);
+  if (!block) { selected=null; renderGrid(); return; }
+  history.push({ blocks: blocks.map(b=>({...b})), holes: holes.map(h=>({...h})), moves });
+  const dr = dir==='up'?-1:dir==='down'?1:0;
+  const dc = dir==='left'?-1:dir==='right'?1:0;
+  const sz = LEVELS[currentLevel].size;
+  let nr=block.r+dr, nc=block.c+dc;
+  while (nr>=0&&nr<sz&&nc>=0&&nc<sz&&tiles[nr][nc]!==WALL&&!blocks.find(b=>b.r===nr&&b.c===nc)) {
+    nr+=dr; nc+=dc;
+  }
+  nr-=dr; nc-=dc;
+  if (nr===block.r&&nc===block.c) { beep(200,0.1,'square'); showMsg('Blocked!'); return; }
+  block.r=nr; block.c=nc;
+  moves++;
+  selected={r:nr,c:nc};
+  beep(440,0.08,'sine',0.15);
+  // Check if fell in hole
+  const holeIdx = holes.findIndex(h=>h.r===nr&&h.c===nc&&(h.col===0||h.col===block.col));
+  if (holeIdx>=0) {
+    holes.splice(holeIdx,1);
+    blocks.splice(blocks.indexOf(block),1);
+    selected=null;
+    beep(600,0.15,'sine');
+    score+=50; updateHUD();
+    showMsg('Block filled the hole! Keep going!');
+  }
+  updateHUD();
+  renderGrid();
+  if (holes.length===0) { levelComplete(); }
+  else if (blocks.length===0 && holes.length>0) { showMsg('No blocks left! Press Reset.'); }
+}
+
+function undoMove() {
+  if (undoLeft<=0) { showMsg('No undos left!'); return; }
+  if (history.length===0) { showMsg('Nothing to undo!'); return; }
+  const prev = history.pop();
+  blocks = prev.blocks; holes = prev.holes; moves = prev.moves;
+  undoLeft--; selected=null;
+  beep(300,0.1,'sine');
+  updateHUD(); renderGrid();
+}
+
+function resetLevel() { startGame(currentLevel); }
+
+function levelComplete() {
+  const par = LEVELS[currentLevel].par;
+  const stars = moves<=par?3:moves<=par+3?2:1;
+  const starStr = '⭐'.repeat(stars);
+  const bonus = (3-moves<=0?0:Math.max(0,par-moves+1))*30 + stars*100;
+  score += bonus;
+  totalScore += bonus + 200;
+  localStorage.setItem('ice_score', totalScore);
+  if (!levelsCompleted.includes(currentLevel)) levelsCompleted.push(currentLevel);
+  localStorage.setItem('ice_completed', JSON.stringify(levelsCompleted));
+  beep(700,0.1); beep(900,0.1); beep(1100,0.2,'sine');
+  submitScore(totalScore);
+  document.getElementById('end-title').textContent = `${starStr} Level ${currentLevel+1} Complete!`;
+  document.getElementById('end-msg').innerHTML = `Moves: ${moves} (Par: ${par})<br>${starStr}<br>Bonus: +${bonus} pts<br>Total Score: <b style="color:yellow">${totalScore}</b>`;
+  document.getElementById('next-lvl-btn').style.display = currentLevel<19?'':'none';
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function nextLevel() {
+  currentLevel = Math.min(19, currentLevel+1);
+  document.getElementById('end-screen').style.display='none';
+  startGame(currentLevel);
+}
+
+function updateHUD() {
+  document.getElementById('moves').textContent = moves;
+  document.getElementById('score').textContent = totalScore;
+  document.getElementById('undo-left').textContent = undoLeft;
+  const par = LEVELS[currentLevel].par;
+  const stars = moves>par+3?'⭐':moves>par?'⭐⭐':'⭐⭐⭐';
+  document.getElementById('stars').textContent = stars;
+}
+function showMsg(m) { document.getElementById('msg').textContent=m; }
+function goHome() { document.getElementById('game-area').style.display='none'; document.getElementById('end-screen').style.display='none'; document.getElementById('start-screen').style.display='flex'; initLevelSelect(); loadLeaderboard(document.getElementById('lb-list')); }
+function loadLeaderboard(el) { if(!fbDb||!el)return; fbDb.ref('leaderboard/'+GAME_ID).orderByChild('score').limitToLast(8).once('value',snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.reverse();el.innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>#${i+1} ${r.name}</span><span>${r.score}pts</span></div>`).join(''):'<div class="lb-row">No scores yet!</div>';}); }
+function submitScore(s) { if(!fbDb)return; fbDb.ref('leaderboard/'+GAME_ID).push({name:playerName(),score:s,ts:Date.now()}); }
+
+// Keyboard support
+window.addEventListener('keydown', e=>{
+  const dm={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};
+  if(dm[e.key]){e.preventDefault();slideSelected(dm[e.key]);}
+  if(e.key==='z'||e.key==='Z') undoMove();
+  if(e.key==='r'||e.key==='R') resetLevel();
+});
+
+initLevelSelect();
+loadLeaderboard(document.getElementById('lb-list'));
+</script>
+</body>
+</html>

@@ -82,6 +82,21 @@ tr:nth-child(3) td{color:#ffccaa}
   <button class="tab-btn" onclick="filterTab('equationescape',this)">🗝️ Equation Escape</button>
   <button class="tab-btn" onclick="filterTab('brainbattle',this)">🤖 Brain Battle</button>
   <button class="tab-btn" onclick="filterTab('mathrunner',this)">🏃 Math Runner</button>
+  <button class="tab-btn" onclick="filterTab('baseball',this)">⚾ Baseball</button>
+  <button class="tab-btn" onclick="filterTab('hockey',this)">🏒 Hockey</button>
+  <button class="tab-btn" onclick="filterTab('skateboard',this)">🛹 Skate Park</button>
+  <button class="tab-btn" onclick="filterTab('boxing',this)">🥊 Boxing</button>
+  <button class="tab-btn" onclick="filterTab('surfing',this)">🏄 Surfing</button>
+  <button class="tab-btn" onclick="filterTab('rocketblast',this)">🚀 Rocket Blast</button>
+  <button class="tab-btn" onclick="filterTab('ninjadash',this)">🥷 Ninja Dash</button>
+  <button class="tab-btn" onclick="filterTab('zombiewave',this)">🧟 Zombie Wave</button>
+  <button class="tab-btn" onclick="filterTab('catapult',this)">🏰 Castle Siege</button>
+  <button class="tab-btn" onclick="filterTab('lootdrop',this)">💎 Loot Drop</button>
+  <button class="tab-btn" onclick="filterTab('treasurehunt',this)">🗺️ Treasure Hunt</button>
+  <button class="tab-btn" onclick="filterTab('dungeonquest',this)">⚔️ Dungeon Quest</button>
+  <button class="tab-btn" onclick="filterTab('piratebattle',this)">🏴‍☠️ Pirate Battle</button>
+  <button class="tab-btn" onclick="filterTab('gemcrush',this)">💎 Gem Crush</button>
+  <button class="tab-btn" onclick="filterTab('iceblock',this)">🧊 Ice Slide</button>
 </div>
 
 <div id="loading">Loading scores...</div>
@@ -124,7 +139,15 @@ var gameLabels = {
   worddungeon:'🗡️ Word Dungeon',
   equationescape:'🗝️ Equation Escape',
   brainbattle:'🤖 Brain Battle',
-  mathrunner:'🏃 Math Runner'
+  mathrunner:'🏃 Math Runner',
+  baseball:'⚾ Home Run Derby', hockey:'🏒 Ice Hockey',
+  skateboard:'🛹 Skate Park', boxing:'🥊 Punch Out',
+  surfing:'🏄 Surf\'s Up', rocketblast:'🚀 Rocket Blast',
+  ninjadash:'🥷 Ninja Dash', zombiewave:'🧟 Zombie Wave',
+  catapult:'🏰 Castle Siege', lootdrop:'💎 Loot Drop',
+  treasurehunt:'🗺️ Treasure Hunt', dungeonquest:'⚔️ Dungeon Quest',
+  piratebattle:'🏴‍☠️ Pirate Battle', gemcrush:'💎 Gem Crush',
+  iceblock:'🧊 Ice Slide'
 };
 
 var firebase_app = firebase.initializeApp(firebaseConfig);

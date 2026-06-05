@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gem Crush - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; }
+    h1 { font-size: 22px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 5px; width: 100%; max-width: 400px; }
+    #hud { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 13px; color: #ffcc00; font-weight: bold; flex-wrap: wrap; gap: 4px; padding: 2px 4px; }
+    #goal-bar-wrap { width: 100%; background: #220000; border: 1px solid #ff6666; border-radius: 6px; padding: 4px 8px; }
+    #goal-text { font-size: 12px; color: #ffaacc; margin-bottom: 3px; }
+    #goal-bar-bg { height: 10px; background: #330000; border-radius: 5px; overflow: hidden; }
+    #goal-bar-fill { height: 100%; background: linear-gradient(90deg,#cc0066,#ff66aa); border-radius: 5px; transition: width 0.3s; }
+    #board { display: grid; gap: 3px; width: 100%; touch-action: none; user-select: none; }
+    .gem { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 2px solid rgba(255,255,255,0.1); cursor: pointer; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; position: relative; overflow: hidden; }
+    .gem.selected { border-color: yellow; box-shadow: 0 0 10px yellow; transform: scale(1.08); }
+    .gem.matched { animation: gemPop 0.3s ease-out forwards; }
+    .gem.falling { animation: gemFall 0.25s ease-in; }
+    .gem.hint { animation: gemHint 0.6s ease-in-out infinite alternate; }
+    @keyframes gemPop { 0%{transform:scale(1)} 50%{transform:scale(1.3)} 100%{transform:scale(0);opacity:0} }
+    @keyframes gemFall { 0%{transform:translateY(-36px);opacity:0} 100%{transform:translateY(0);opacity:1} }
+    @keyframes gemHint { from{box-shadow:0 0 4px white} to{box-shadow:0 0 14px white} }
+    .gem-bomb { border-color: #ff6600 !important; box-shadow: 0 0 8px #ff6600; }
+    .gem-rainbow { border-color: #ff00ff !important; box-shadow: 0 0 8px #ff00ff; animation: rainbowPulse 0.5s infinite alternate; }
+    @keyframes rainbowPulse { from{border-color:#ff00ff;box-shadow:0 0 8px #ff00ff} to{border-color:#00ffff;box-shadow:0 0 8px #00ffff} }
+    #powerup-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .pu-btn { background: #2a0000; border: 2px solid #ff6666; border-radius: 8px; color: white; font-size: 18px; padding: 6px 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; position: relative; }
+    .pu-btn span { position: absolute; top: -4px; right: -4px; background: #cc0000; color: white; font-size: 10px; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .pu-btn:active { filter: brightness(1.4); }
+    #timer-bar-bg { width: 100%; height: 8px; background: #330000; border-radius: 4px; overflow: hidden; border: 1px solid #ff6666; }
+    #timer-fill { height: 100%; background: linear-gradient(90deg,#ffaa00,#ffff00); transition: width 0.1s; }
+    #msg { font-size: 14px; color: #ffcc88; text-align: center; min-height: 20px; font-weight: bold; }
+    .score-pop { position: fixed; font-size: 20px; font-weight: bold; color: yellow; pointer-events: none; animation: scoreFly 0.8s ease-out forwards; z-index: 100; }
+    @keyframes scoreFly { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-50px);opacity:0} }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px; font-size: 13px; color: #ffcccc; line-height: 1.6; width: 100%; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 130px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+    #level-badge { background: #330000; border: 2px solid #ff6666; border-radius: 20px; padding: 3px 10px; font-size: 13px; color: #ffcc00; }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:36px"></div>
+  <h1>💎 Gem Crush</h1>
+  <div class="info-box">
+    Match 3+ gems in a row to crush them!<br>
+    4-in-a-row = 💣 Bomb gem (clears area)<br>
+    L-shape = 🌈 Rainbow gem (clears color)<br>
+    Each level has a goal — collect enough gems to advance!<br>
+    🔨 Hammer • 🔀 Shuffle • 🌈 Color Bomb power-ups!
+  </div>
+  <div id="lb-list"></div>
+  <button class="btn" onclick="startGame()">💎 Play!</button>
+</div>
+
+<div id="game-area">
+  <div style="height:44px"></div>
+  <h1>💎 Gem Crush</h1>
+  <div id="hud">
+    <div id="level-badge">Level <span id="lvl-num">1</span>/30</div>
+    <span>⭐ <span id="score">0</span></span>
+    <span>🔀 Moves: <span id="moves">20</span></span>
+  </div>
+  <div id="goal-bar-wrap">
+    <div id="goal-text">Goal: Collect 0/20 💎 gems</div>
+    <div id="goal-bar-bg"><div id="goal-bar-fill" style="width:0%"></div></div>
+  </div>
+  <div id="timer-bar-bg" style="display:none"><div id="timer-fill" style="width:100%"></div></div>
+  <div id="msg">Swap gems to match 3 or more!</div>
+  <div id="board"></div>
+  <div id="powerup-bar">
+    <button class="pu-btn" onclick="usePowerup('hammer')" title="Remove one gem">🔨<span id="pu-hammer">2</span></button>
+    <button class="pu-btn" onclick="usePowerup('shuffle')" title="Shuffle board">🔀<span id="pu-shuffle">1</span></button>
+    <button class="pu-btn" onclick="usePowerup('bomb')" title="Color bomb">💣<span id="pu-bomb">1</span></button>
+  </div>
+  <button class="btn" style="padding:6px 12px;font-size:13px;margin-top:4px" onclick="goHome()">🏠 Quit</button>
+</div>
+
+<div id="end-screen">
+  <div style="height:44px"></div>
+  <h1 id="end-title">💎 Level Complete!</h1>
+  <div id="end-msg" class="info-box" style="text-align:center"></div>
+  <div id="lb-list-end"></div>
+  <button class="btn" id="next-btn" onclick="nextLevel()">Next Level ➡️</button>
+  <button class="btn" onclick="startGame()">▶️ Restart</button>
+  <button class="btn" onclick="goHome()">🏠 Home</button>
+</div>
+
+<script>
+const FBCONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try { fbApp = firebase.initializeApp(FBCONFIG, 'lb_gemcrush'); fbDb = firebase.database(fbApp); } catch(e){}
+const GAME_ID = 'gemcrush';
+const playerName = () => localStorage.getItem('visitorName') || 'Player';
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, type='sine', vol=0.2) {
+  try { const a=getAudio(); const o=a.createOscillator(); const g=a.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+
+const COLS = 7, ROWS = 7;
+const GEM_TYPES = ['💎','🔮','💜','🟥','🟧','🟩','🔵'];
+const GEM_COLORS = { '💎':'#88ddff','🔮':'#9944ff','💜':'#cc44cc','🟥':'#cc2200','🟧':'#cc6600','🟩':'#006600','🔵':'#0044cc' };
+const SPECIAL_BOMB = '💣', SPECIAL_RAINBOW = '🌈';
+
+let board = [], level = 1, score = 0, movesLeft = 20;
+let selected = null, animating = false, gameOver = false;
+let goalType = '', goalTarget = 0, goalProgress = 0;
+let timerActive = false, timerLeft = 0, timerInterval = null;
+let powerups = { hammer: 2, shuffle: 1, bomb: 1 };
+let activePowerup = null;
+
+const LEVEL_CONFIGS = [];
+for (let i=1;i<=30;i++) {
+  const gem = GEM_TYPES[i%GEM_TYPES.length];
+  LEVEL_CONFIGS.push({
+    goal: gem, target: 10+i*2, moves: Math.max(10, 25-Math.floor(i/3)),
+    timed: i > 20, time: 60
+  });
+}
+
+function startGame() {
+  level = 1; score = 0;
+  powerups = { hammer:2, shuffle:1, bomb:1 };
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  loadLevel(level);
+  loadLeaderboard(document.getElementById('lb-list'));
+}
+
+function loadLevel(l) {
+  const cfg = LEVEL_CONFIGS[l-1];
+  movesLeft = cfg.moves; goalType = cfg.goal; goalTarget = cfg.target; goalProgress = 0;
+  selected = null; animating = false; activePowerup = null;
+  initBoard();
+  updateHUD();
+  updateGoal();
+  updatePowerupBar();
+  document.getElementById('lvl-num').textContent = l;
+  if (cfg.timed) {
+    timerLeft = cfg.time;
+    document.getElementById('timer-bar-bg').style.display='block';
+    clearInterval(timerInterval);
+    timerInterval = setInterval(()=>{
+      timerLeft--; document.getElementById('timer-fill').style.width=(timerLeft/cfg.time*100)+'%';
+      if (timerLeft<=0){clearInterval(timerInterval);endLevel(false);}
+    },1000);
+  } else {
+    document.getElementById('timer-bar-bg').style.display='none';
+    clearInterval(timerInterval);
+  }
+  showMsg(`Level ${l}: Collect ${goalTarget} ${goalType}!`);
+}
+
+function initBoard() {
+  board = [];
+  for (let r=0;r<ROWS;r++) { board.push([]); for(let c=0;c<COLS;c++) board[r].push(newGem()); }
+  // Ensure no initial matches
+  for (let pass=0;pass<5;pass++) {
+    for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+      while (checkMatchAt(r,c,board[r][c].type).length >= 3) board[r][c] = newGem();
+    }
+  }
+  renderBoard();
+}
+
+function newGem(type) {
+  const t = type || GEM_TYPES[Math.floor(Math.random()*GEM_TYPES.length)];
+  return { type: t, special: null };
+}
+
+function renderBoard() {
+  const el = document.getElementById('board');
+  el.style.gridTemplateColumns = `repeat(${COLS},1fr)`;
+  el.innerHTML = '';
+  for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+    const g = board[r][c];
+    const d = document.createElement('div');
+    d.className = 'gem' + (g.special==='bomb'?' gem-bomb':g.special==='rainbow'?' gem-rainbow':'');
+    d.style.background = g ? (GEM_COLORS[g.type]||'#333')+'44' : '#110000';
+    d.dataset.r=r; d.dataset.c=c;
+    if (selected && selected.r===r && selected.c===c) d.classList.add('selected');
+    d.textContent = g.special==='bomb' ? SPECIAL_BOMB : g.special==='rainbow' ? SPECIAL_RAINBOW : g.type;
+    d.addEventListener('click', ()=>onGemClick(r,c));
+    d.addEventListener('touchstart', (e)=>{e.preventDefault();onGemClick(r,c);},{passive:false});
+    el.appendChild(d);
+  }
+}
+
+function onGemClick(r, c) {
+  if (animating || gameOver) return;
+  if (activePowerup) { applyPowerupTo(r,c); return; }
+  if (!selected) { selected={r,c}; renderBoard(); beep(500,0.05); return; }
+  if (selected.r===r && selected.c===c) { selected=null; renderBoard(); return; }
+  // Check adjacency
+  const dr=Math.abs(r-selected.r), dc=Math.abs(c-selected.c);
+  if (dr+dc===1) {
+    swapGems(selected.r,selected.c,r,c);
+  } else {
+    selected={r,c}; renderBoard();
+  }
+}
+
+function swapGems(r1,c1,r2,c2) {
+  animating=true;
+  const tmp=board[r1][c1]; board[r1][c1]=board[r2][c2]; board[r2][c2]=tmp;
+  const matches = findAllMatches();
+  if (matches.length===0) {
+    // Swap back
+    const t2=board[r1][c1]; board[r1][c1]=board[r2][c2]; board[r2][c2]=t2;
+    selected=null; animating=false; renderBoard(); beep(200,0.1,'square'); showMsg('No match there!');
+    return;
+  }
+  movesLeft--;
+  selected=null;
+  beep(600,0.08,'sine');
+  processMatches(matches, r1,c1,r2,c2);
+}
+
+function checkMatchAt(r,c,type) {
+  const cells = [];
+  // Horizontal
+  let h=[{r,c}];
+  for(let dc=1;c+dc<COLS&&board[r][c+dc]&&board[r][c+dc].type===type;dc++) h.push({r,c:c+dc});
+  for(let dc=1;c-dc>=0&&board[r][c-dc]&&board[r][c-dc].type===type;dc++) h.push({r,c:c-dc});
+  if(h.length>=3) cells.push(...h);
+  // Vertical
+  let v=[{r,c}];
+  for(let dr=1;r+dr<ROWS&&board[r+dr][c]&&board[r+dr][c].type===type;dr++) v.push({r:r+dr,c});
+  for(let dr=1;r-dr>=0&&board[r-dr][c]&&board[r-dr][c].type===type;dr++) v.push({r:r-dr,c});
+  if(v.length>=3) cells.push(...v);
+  return [...new Map(cells.map(x=>[`${x.r},${x.c}`,x])).values()];
+}
+
+function findAllMatches() {
+  const matched = new Set();
+  // Horizontal
+  for (let r=0;r<ROWS;r++) {
+    let run=1;
+    for (let c=1;c<=COLS;c++) {
+      if(c<COLS && board[r][c] && board[r][c-1] && board[r][c].type===board[r][c-1].type) { run++; }
+      else { if(run>=3) for(let k=c-run;k<c;k++) matched.add(`${r},${k}`); run=1; }
+    }
+  }
+  // Vertical
+  for (let c=0;c<COLS;c++) {
+    let run=1;
+    for (let r=1;r<=ROWS;r++) {
+      if(r<ROWS && board[r][c] && board[r-1][c] && board[r][c].type===board[r-1][c].type) { run++; }
+      else { if(run>=3) for(let k=r-run;k<r;k++) matched.add(`${k},${c}`); run=1; }
+    }
+  }
+  return [...matched].map(s=>{const[r2,c2]=s.split(',').map(Number);return{r:r2,c:c2};});
+}
+
+function processMatches(matches, sr1=-1,sc1=-1,sr2=-1,sc2=-1) {
+  let pts = matches.length * 30;
+  let goalGained = 0;
+  // Check for special creation
+  const swappedCells = new Set([`${sr1},${sc1}`,`${sr2},${sc2}`]);
+  // Mark matched
+  const matchSet = new Set(matches.map(m=>`${m.r},${m.c}`));
+  for (const {r,c} of matches) {
+    if (board[r][c] && board[r][c].type===goalType) goalGained++;
+    if (board[r][c] && board[r][c].special==='bomb') {
+      // Explode surrounding
+      for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) {
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!matchSet.has(`${nr},${nc}`)) {
+          matchSet.add(`${nr},${nc}`); matches.push({r:nr,c:nc}); pts+=20;
+          if(board[nr][nc]&&board[nr][nc].type===goalType) goalGained++;
+        }
+      }
+    }
+    if (board[r][c] && board[r][c].special==='rainbow') {
+      // Clear all of one type
+      const t2=board[r][c].type;
+      for(let r2=0;r2<ROWS;r2++) for(let c2=0;c2<COLS;c2++) {
+        if(board[r2][c2]&&board[r2][c2].type===t2&&!matchSet.has(`${r2},${c2}`)) {
+          matchSet.add(`${r2},${c2}`); matches.push({r:r2,c:c2}); pts+=10;
+          if(t2===goalType) goalGained++;
+        }
+      }
+    }
+  }
+  // Check for 4+ special creation
+  // Horizontal runs
+  for (let r2=0;r2<ROWS;r2++) {
+    let run=[], prev=null;
+    for (let c2=0;c2<COLS;c2++) {
+      if(board[r2][c2]&&matchSet.has(`${r2},${c2}`)&&board[r2][c2].type===prev) run.push({r:r2,c:c2});
+      else { checkRunSpecial(run,swappedCells,sr1,sc1,sr2,sc2); run=board[r2][c2]&&matchSet.has(`${r2},${c2}`)? [{r:r2,c:c2}]:[]; prev=board[r2][c2]?board[r2][c2].type:null; }
+    }
+    checkRunSpecial(run,swappedCells,sr1,sc1,sr2,sc2);
+  }
+  // Clear matched cells
+  for (const {r,c} of [...new Map(matches.map(m=>[`${m.r},${m.c}`,m])).values()]) {
+    board[r][c] = null;
+  }
+  score += pts;
+  goalProgress = Math.min(goalTarget, goalProgress + goalGained);
+  if (pts > 60) { showScorePop('+'+pts); beep(700,0.2,'sine'); } else beep(600,0.1,'sine');
+  updateHUD();
+  updateGoal();
+  // Fall
+  setTimeout(()=>{ applyGravity(); setTimeout(()=>{ fillEmpty(); setTimeout(()=>{ const nm=findAllMatches(); if(nm.length>0){processMatches(nm);}else{animating=false;renderBoard();checkEnd();} },200); },100); },250);
+}
+
+function checkRunSpecial(run,swappedCells,sr1,sc1,sr2,sc2) {
+  if (run.length >= 4) {
+    const pivot = run.find(m=>`${m.r},${m.c}`===`${sr1},${sc1}`||`${m.r},${m.c}`===`${sr2},${sc2}`) || run[Math.floor(run.length/2)];
+    if (run.length>=5 || (run.length>=4&&false)) {
+      // Create rainbow at pivot
+    } else if (run.length===4) {
+      board[pivot.r][pivot.c] = { type: board[pivot.r]?.[pivot.c]?.type || GEM_TYPES[0], special:'bomb' };
+    }
+  }
+}
+
+function applyGravity() {
+  for (let c=0;c<COLS;c++) {
+    let empty=[];
+    for (let r=ROWS-1;r>=0;r--) { if(!board[r][c]) empty.push(r); else if(empty.length>0) { board[empty.shift()][c]=board[r][c]; board[r][c]=null; empty.push(r); empty.sort((a,b)=>b-a); } }
+  }
+  renderBoard();
+}
+
+function fillEmpty() {
+  for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(!board[r][c]) board[r][c]=newGem();
+  renderBoard();
+}
+
+function checkEnd() {
+  if (goalProgress >= goalTarget) { endLevel(true); return; }
+  if (movesLeft <= 0 && goalProgress < goalTarget) { endLevel(false); return; }
+  updateHUD();
+}
+
+function endLevel(won) {
+  clearInterval(timerInterval);
+  gameOver=true;
+  if (won) {
+    beep(800,0.1); beep(1000,0.1); beep(1200,0.3,'sine');
+    score += movesLeft * 20;
+    if (level >= 30) {
+      submitScore(score);
+      document.getElementById('end-title').textContent = '🏆 All Levels Complete!';
+      document.getElementById('end-msg').innerHTML = `You crushed all 30 levels!<br>Score: <b style="color:yellow">${score}</b>`;
+      document.getElementById('next-btn').style.display='none';
+    } else {
+      document.getElementById('end-title').textContent = '💎 Level Complete!';
+      document.getElementById('end-msg').innerHTML = `Level ${level} cleared!<br>Score: <b style="color:yellow">${score}</b><br>Moves left bonus: +${movesLeft*20}`;
+      document.getElementById('next-btn').style.display='';
+    }
+  } else {
+    beep(200,0.4,'sawtooth');
+    submitScore(score);
+    document.getElementById('end-title').textContent = '💔 Level Failed!';
+    document.getElementById('end-msg').innerHTML = `Goal: ${goalProgress}/${goalTarget} ${goalType}<br>Score: <b style="color:yellow">${score}</b>`;
+    document.getElementById('next-btn').style.display='none';
+  }
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='flex';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function nextLevel() {
+  level++;
+  gameOver=false;
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-area').style.display='flex';
+  loadLevel(level);
+}
+
+function showScorePop(text) {
+  const d=document.createElement('div'); d.className='score-pop'; d.textContent=text;
+  d.style.left=Math.random()*60+20+'%'; d.style.top=Math.random()*30+30+'%';
+  document.body.appendChild(d); setTimeout(()=>d.remove(),900);
+}
+
+function usePowerup(type) {
+  if (powerups[type]<=0) { showMsg(`No ${type} left!`); return; }
+  activePowerup=type;
+  showMsg(type==='hammer'?'🔨 Tap a gem to remove it!':type==='shuffle'?'Shuffling...':'💣 Tap a gem to bomb it!');
+  if (type==='shuffle') { shuffleBoard(); activePowerup=null; powerups.shuffle--; updatePowerupBar(); }
+}
+
+function applyPowerupTo(r,c) {
+  if (activePowerup==='hammer') {
+    if(board[r][c]&&board[r][c].type===goalType) goalProgress++;
+    board[r][c]=null; powerups.hammer--; score+=50;
+    beep(700,0.2,'sawtooth'); applyGravity(); setTimeout(()=>{fillEmpty();animating=false;renderBoard();checkEnd();},200);
+  } else if (activePowerup==='bomb') {
+    const type=board[r][c]?board[r][c].type:GEM_TYPES[0];
+    let cnt=0;
+    for(let r2=0;r2<ROWS;r2++) for(let c2=0;c2<COLS;c2++) if(board[r2][c2]&&board[r2][c2].type===type){board[r2][c2]=null;cnt++;if(type===goalType)goalProgress++;}
+    score+=cnt*20; powerups.bomb--; beep(500,0.3,'sawtooth');
+    applyGravity(); setTimeout(()=>{fillEmpty();animating=false;renderBoard();checkEnd();},200);
+  }
+  activePowerup=null; updatePowerupBar();
+}
+
+function shuffleBoard() {
+  const flat=[]; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) flat.push(board[r][c]);
+  for(let i=flat.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[flat[i],flat[j]]=[flat[j],flat[i]];}
+  let i=0; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) board[r][c]=flat[i++];
+  beep(400,0.15,'sine'); renderBoard(); showMsg('Board shuffled!');
+}
+
+function updateHUD() {
+  document.getElementById('score').textContent=score;
+  document.getElementById('moves').textContent=movesLeft;
+}
+function updateGoal() {
+  const pct=Math.min(100,goalProgress/goalTarget*100);
+  document.getElementById('goal-bar-fill').style.width=pct+'%';
+  document.getElementById('goal-text').textContent=`Goal: Collect ${goalProgress}/${goalTarget} ${goalType}`;
+}
+function updatePowerupBar() {
+  document.getElementById('pu-hammer').textContent=powerups.hammer;
+  document.getElementById('pu-shuffle').textContent=powerups.shuffle;
+  document.getElementById('pu-bomb').textContent=powerups.bomb;
+}
+function showMsg(m) { document.getElementById('msg').textContent=m; }
+function goHome() { clearInterval(timerInterval); document.getElementById('game-area').style.display='none'; document.getElementById('end-screen').style.display='none'; document.getElementById('start-screen').style.display='flex'; loadLeaderboard(document.getElementById('lb-list')); }
+function loadLeaderboard(el) { if(!fbDb||!el)return; fbDb.ref('leaderboard/'+GAME_ID).orderByChild('score').limitToLast(8).once('value',snap=>{const rows=[];snap.forEach(c=>rows.push(c.val()));rows.reverse();el.innerHTML=rows.length?rows.map((r,i)=>`<div class="lb-row"><span>#${i+1} ${r.name}</span><span>${r.score}pts</span></div>`).join(''):'<div class="lb-row">No scores yet!</div>';}); }
+function submitScore(s) { if(!fbDb)return; fbDb.ref('leaderboard/'+GAME_ID).push({name:playerName(),score:s,ts:Date.now()}); }
+
+loadLeaderboard(document.getElementById('lb-list'));
+</script>
+</body>
+</html>

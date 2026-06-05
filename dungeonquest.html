@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dungeon Quest - Ender's Game World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a0000; font-family: Arial, sans-serif; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; }
+    h1 { font-size: 22px; color: yellow; text-align: center; margin-bottom: 4px; }
+    .btn { background: darkred; color: white; border: 2px solid #ff6666; border-radius: 10px; padding: 10px 22px; font-size: 16px; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .btn:active { filter: brightness(1.5); }
+    #start-screen, #end-screen { max-width: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 20px 0; }
+    #end-screen { display: none; }
+    #game-area { display: none; flex-direction: column; align-items: center; gap: 5px; width: 100%; max-width: 480px; }
+    /* HUD */
+    #hud { width: 100%; background: #220000; border: 1px solid #ff6666; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .bar-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .bar-bg { flex: 1; height: 10px; background: #330000; border-radius: 5px; overflow: hidden; border: 1px solid #550000; }
+    .bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+    #hp-fill { background: linear-gradient(90deg,#cc0000,#ff4444); }
+    #mp-fill { background: linear-gradient(90deg,#000099,#4488ff); }
+    #xp-fill { background: linear-gradient(90deg,#885500,#ffcc00); }
+    #hud-stats { display: flex; justify-content: space-between; font-size: 12px; color: #ffcc00; flex-wrap: wrap; gap: 4px; }
+    /* Dungeon canvas */
+    #dungeon-canvas { width: 100%; max-width: 320px; height: 320px; background: #0a0000; border: 2px solid #ff6666; border-radius: 8px; display: block; image-rendering: pixelated; cursor: pointer; }
+    #msg { font-size: 13px; color: #ffcc88; text-align: center; min-height: 18px; background: #1a0000; padding: 2px 6px; border-radius: 4px; width: 100%; }
+    /* D-pad */
+    #dpad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; margin: 4px 0; }
+    .dpad-btn { background: #330000; border: 2px solid #ff6666; border-radius: 8px; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+    .dpad-btn:active { background: #660000; }
+    .dpad-center { background: #2a0000; border-color: #ff9999; font-size: 12px; color: #ffcc00; }
+    /* Inventory */
+    #inventory { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%; }
+    .inv-slot { background: #220000; border: 2px solid #550000; border-radius: 6px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 22px; position: relative; }
+    .inv-slot.equipped { border-color: yellow; }
+    .inv-count { position: absolute; bottom: 1px; right: 3px; font-size: 9px; color: yellow; font-weight: bold; }
+    .info-box { background: #2a0000; border: 1px solid #ff6666; border-radius: 8px; padding: 10px; font-size: 13px; color: #ffcccc; line-height: 1.6; width: 100%; }
+    #lb-list, #lb-list-end { width: 100%; max-height: 130px; overflow-y: auto; }
+    .lb-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 6px; border-radius: 4px; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.05); }
+  </style>
+</head>
+<body>
+<a href="index.html" style="position:fixed;top:8px;left:10px;color:#ff9999;text-decoration:none;font-size:13px;z-index:99;background:#1a0000;padding:3px 6px;border-radius:6px;border:1px solid #ff6666">🏠 Home</a>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<div id="start-screen">
+  <div style="height:36px"></div>
+  <h1>⚔️ Dungeon Quest</h1>
+  <div class="info-box">
+    🗡️ Explore 10 dungeon floors!<br>
+    Use the D-pad to move. Tap enemies to attack!<br>
+    💎 Collect items from chests 📦<br>
+    Every 3 kills → Level Up! Beat the Dragon on Floor 10!<br>
+    ❤️ Potions restore HP • ⚔️ Swords boost attack • 🛡️ Armor reduces damage
+  </div>
+  <div id="lb-list"></div>
+  <button class="btn" onclick="startGame()">⚔️ Enter Dungeon!</button>
+</div>
+
+<div id="game-area">
+  <div style="height:44px"></div>
+  <h1>⚔️ Dungeon Quest</h1>
+  <div id="hud">
+    <div class="bar-row">❤️ HP <div class="bar-bg"><div class="bar-fill" id="hp-fill"></div></div> <span id="hp-txt">20/20</span></div>
+    <div class="bar-row">🔷 MP <div class="bar-bg"><div class="bar-fill" id="mp-fill"></div></div> <span id="mp-txt">10/10</span></div>
+    <div class="bar-row">⭐ XP <div class="bar-bg"><div class="bar-fill" id="xp-fill"></div></div> <span id="xp-txt">0/3</span></div>
+    <div id="hud-stats">
+      <span>🏰 Floor <span id="floor">1</span>/10</span>
+      <span>⚔️ ATK <span id="atk">3</span></span>
+      <span>🛡️ DEF <span id="def">1</span></span>
+      <span>🏆 Score <span id="score">0</span></span>
+      <span>💀 Kills <span id="kills">0</span></span>
+    </div>
+  </div>
+  <canvas id="dungeon-canvas" width="320" height="320"></canvas>
+  <div id="msg">Move with the D-pad!</div>
+  <div id="dpad">
+    <div></div>
+    <div class="dpad-btn" id="btn-up" ontouchstart="startDir('up',event)" ontouchend="stopDir(event)" onmousedown="startDir('up',event)" onmouseup="stopDir(event)">▲</div>
+    <div></div>
+    <div class="dpad-btn" id="btn-left" ontouchstart="startDir('left',event)" ontouchend="stopDir(event)" onmousedown="startDir('left',event)" onmouseup="stopDir(event)">◀</div>
+    <div class="dpad-btn dpad-center" id="btn-atk" onclick="doAttack()">⚔️ATK</div>
+    <div class="dpad-btn" id="btn-right" ontouchstart="startDir('right',event)" ontouchend="stopDir(event)" onmousedown="startDir('right',event)" onmouseup="stopDir(event)">▶</div>
+    <div></div>
+    <div class="dpad-btn" id="btn-down" ontouchstart="startDir('down',event)" ontouchend="stopDir(event)" onmousedown="startDir('down',event)" onmouseup="stopDir(event)">▼</div>
+    <div></div>
+  </div>
+  <div id="inventory"></div>
+  <button class="btn" style="padding:6px 12px;font-size:13px;margin-top:4px" onclick="confirmQuit()">🏠 Quit</button>
+</div>
+
+<div id="end-screen">
+  <div style="height:44px"></div>
+  <h1 id="end-title">⚔️ Game Over</h1>
+  <div id="end-msg" class="info-box" style="text-align:center"></div>
+  <div id="lb-list-end"></div>
+  <button class="btn" onclick="startGame()">▶️ Play Again</button>
+  <button class="btn" onclick="goHome()">🏠 Home</button>
+</div>
+
+<script>
+const FBCONFIG = { apiKey:"AIzaSyCF9IHEEWXxX24ouRVpkZuFR958N6_ceIc", authDomain:"enders-games.firebaseapp.com", databaseURL:"https://enders-games-default-rtdb.firebaseio.com", projectId:"enders-games" };
+let fbApp, fbDb;
+try { fbApp = firebase.initializeApp(FBCONFIG, 'lb_dungeonquest'); fbDb = firebase.database(fbApp); } catch(e){}
+const GAME_ID = 'dungeonquest';
+const playerName = () => localStorage.getItem('visitorName') || 'Player';
+let audioCtx = null;
+function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function beep(freq, dur, type='square', vol=0.25) {
+  try { const a=getAudio(); const o=a.createOscillator(); const g=a.createGain(); o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur); } catch(e){}
+}
+
+const TILE = 32, CANVAS_SIZE = 320, TILES = 10; // 10x10 dungeon
+const T_FLOOR = 0, T_WALL = 1, T_STAIRS = 2, T_CHEST = 3;
+
+// Game state
+let floor, map, entities, player, score, kills;
+let animFrame = null, moveInterval = null, pendingDir = null;
+let canvas, ctx;
+
+function initPlayer() {
+  return { x:1, y:1, hp:20, maxHp:20, mp:10, maxMp:10, atk:3, def:1, xp:0, level:1,
+    inv: { potions:0, swords:0, armor:0 } };
+}
+
+function generateFloor(floorNum) {
+  const m = [];
+  for (let y=0;y<TILES;y++) { m.push([]); for(let x=0;x<TILES;x++) m[y].push(T_WALL); }
+  // Simple maze-like generation via random walk
+  function carve(x,y) {
+    const dirs = [{dx:0,dy:-2},{dx:2,dy:0},{dx:0,dy:2},{dx:-2,dy:0}].sort(()=>Math.random()-0.5);
+    for (const {dx,dy} of dirs) {
+      const nx=x+dx, ny=y+dy;
+      if (nx>0&&nx<TILES-1&&ny>0&&ny<TILES-1&&m[ny][nx]===T_WALL) {
+        m[y+dy/2][x+dx/2]=T_FLOOR; m[ny][nx]=T_FLOOR; carve(nx,ny);
+      }
+    }
+  }
+  m[1][1]=T_FLOOR; carve(1,1);
+  // stairs at far end
+  for (let y=TILES-2;y>0;y--) for(let x=TILES-2;x>0;x--) { if(m[y][x]===T_FLOOR){m[y][x]=T_STAIRS;y=0;break;} }
+  // Place chests
+  let chests = 2 + Math.floor(floorNum/3);
+  const ents = [];
+  for (let y=0;y<TILES;y++) for(let x=0;x<TILES;x++) if(m[y][x]===T_FLOOR&&!(x===1&&y===1)) {
+    if(chests>0&&Math.random()<0.08) { m[y][x]=T_CHEST; chests--; }
+  }
+  // Enemies based on floor
+  const enemyTypes = floorNum<=3 ? ['slime'] : floorNum<=7 ? ['slime','skeleton'] : ['skeleton','dragon'];
+  const enemyCount = 2 + floorNum;
+  let placed = 0;
+  for (let tries=0; tries<500 && placed<enemyCount; tries++) {
+    const ex=1+Math.floor(Math.random()*(TILES-2)), ey=1+Math.floor(Math.random()*(TILES-2));
+    if (m[ey][ex]===T_FLOOR && !(ex===1&&ey===1) && !enoughAway(ex,ey,1,1,3) && !enoughAway(ex,ey,1,1,2)) {
+      const isBoss = floorNum===10 && placed===0;
+      const etype = isBoss ? 'dragon' : enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
+      enets_push(ents, ex, ey, etype, floorNum, isBoss);
+      placed++;
+    }
+  }
+  return { m, enets: ents };
+}
+
+function enoughAway(x1,y1,x2,y2,dist) { return Math.abs(x1-x2)>dist || Math.abs(y1-y2)>dist; }
+
+function enets_push(enets, x, y, type, floor, boss) {
+  const stats = {
+    slime:  { hp:5+floor,  atk:1+Math.floor(floor/2), emoji:'🟢', col:'#006600' },
+    skeleton: { hp:8+floor*2, atk:2+floor,              emoji:'💀', col:'#888888' },
+    dragon:  { hp:boss?40+floor*3:12+floor*2, atk:boss?6+floor:3+floor, emoji:boss?'🐉':'🦎', col:'#660000' },
+  };
+  const s = stats[type];
+  enets.push({ x, y, type, hp: s.hp, maxHp: s.hp, atk: s.atk, emoji: s.emoji, col: s.col, boss, alive: true });
+}
+
+function startGame() {
+  canvas = document.getElementById('dungeon-canvas');
+  ctx = canvas.getContext('2d');
+  floor = 1; score = 0; kills = 0;
+  player = initPlayer();
+  loadFloor(floor);
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('game-area').style.display = 'flex';
+  updateHUD();
+  loadLeaderboard(document.getElementById('lb-list'));
+  startLoop();
+  window.addEventListener('keydown', handleKey);
+}
+
+function loadFloor(f) {
+  const gen = generateFloor(f);
+  map = gen.m;
+  entities = gen.enets;
+  player.x = 1; player.y = 1;
+  showMsg(`Floor ${f} — ${f===10?'BOSS FLOOR!':'Explore & survive!'}`);
+  if (f===10) beep(150,0.5,'sawtooth');
+}
+
+function startLoop() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  function loop() { draw(); animFrame = requestAnimationFrame(loop); }
+  animFrame = requestAnimationFrame(loop);
+}
+
+function draw() {
+  if (!ctx) return;
+  ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+  ctx.fillStyle = '#050000';
+  ctx.fillRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+  // Camera centered on player
+  const camX = Math.max(0, Math.min(TILES-Math.floor(CANVAS_SIZE/TILE), player.x - Math.floor(CANVAS_SIZE/TILE/2)));
+  const camY = Math.max(0, Math.min(TILES-Math.floor(CANVAS_SIZE/TILE), player.y - Math.floor(CANVAS_SIZE/TILE/2)));
+  const visW = Math.ceil(CANVAS_SIZE/TILE)+1, visH = Math.ceil(CANVAS_SIZE/TILE)+1;
+  for (let ty=camY; ty<Math.min(TILES,camY+visH); ty++) {
+    for (let tx=camX; tx<Math.min(TILES,camX+visW); tx++) {
+      const px=(tx-camX)*TILE, py=(ty-camY)*TILE;
+      const t = map[ty][tx];
+      if (t===T_WALL) { ctx.fillStyle='#110000'; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle='#330000'; ctx.fillRect(px+1,py+1,TILE-2,TILE-2); }
+      else if (t===T_FLOOR) { ctx.fillStyle='#1a0800'; ctx.fillRect(px,py,TILE,TILE); }
+      else if (t===T_STAIRS) { ctx.fillStyle='#1a0800'; ctx.fillRect(px,py,TILE,TILE); ctx.font='18px serif'; ctx.fillText('🪜',px+4,py+22); }
+      else if (t===T_CHEST) { ctx.fillStyle='#1a0800'; ctx.fillRect(px,py,TILE,TILE); ctx.font='18px serif'; ctx.fillText('📦',px+4,py+22); }
+    }
+  }
+  // Entities
+  for (const e of entities) {
+    if (!e.alive) continue;
+    const px=(e.x-camX)*TILE, py=(e.y-camY)*TILE;
+    if (px<-TILE||px>CANVAS_SIZE||py<-TILE||py>CANVAS_SIZE) continue;
+    ctx.font = '20px serif';
+    ctx.fillText(e.emoji, px+4, py+22);
+    // HP bar
+    ctx.fillStyle='#330000'; ctx.fillRect(px,py,TILE,4);
+    ctx.fillStyle='#ff0000'; ctx.fillRect(px,py,Math.round(TILE*e.hp/e.maxHp),4);
+  }
+  // Player
+  const ppx=(player.x-camX)*TILE, ppy=(player.y-camY)*TILE;
+  ctx.font='20px serif'; ctx.fillText('🧑',ppx+4,ppy+22);
+  ctx.strokeStyle='yellow'; ctx.lineWidth=1.5; ctx.strokeRect(ppx+1,ppy+1,TILE-2,TILE-2);
+}
+
+function canWalk(x,y) {
+  if (x<0||x>=TILES||y<0||y>=TILES) return false;
+  return map[y][x] !== T_WALL;
+}
+
+function tryMove(dx, dy) {
+  const nx=player.x+dx, ny=player.y+dy;
+  if (!canWalk(nx,ny)) { beep(150,0.05,'square',0.1); return; }
+  // Check enemy at target
+  const enemy = entities.find(e=>e.alive&&e.x===nx&&e.y===ny);
+  if (enemy) { attackEnemy(enemy); return; }
+  player.x=nx; player.y=ny;
+  beep(300,0.04,'sine',0.08);
+  // Step on stairs
+  if (map[ny][nx]===T_STAIRS) {
+    if (floor===10) { victory(); return; }
+    floor++; score+=100; loadFloor(floor); updateHUD(); return;
+  }
+  // Step on chest
+  if (map[ny][nx]===T_CHEST) { openChest(nx,ny); }
+  // Enemy AI move
+  enemyTurn();
+  updateHUD();
+}
+
+function attackEnemy(enemy) {
+  const dmg = Math.max(1, player.atk - 0); // ignore enemy def for simplicity
+  enemy.hp -= dmg;
+  beep(500,0.1,'square');
+  showMsg(`⚔️ Hit ${enemy.emoji} for ${dmg} dmg!`);
+  if (enemy.hp <= 0) {
+    enemy.alive = false;
+    kills++;
+    score += enemy.boss ? 500 : 30+floor*5;
+    player.xp++;
+    beep(700,0.15,'sine');
+    showMsg(`💀 Defeated ${enemy.emoji}! +${enemy.boss?500:30+floor*5}pts`);
+    if (player.xp >= 3) { levelUp(); }
+    if (floor===10 && enemy.boss) { victory(); return; }
+  } else {
+    // Enemy counter-attack
+    const edm = Math.max(1, enemy.atk - player.def);
+    player.hp -= edm;
+    if (player.hp <= 0) { gameOver(); return; }
+  }
+  enemyTurn();
+  updateHUD();
+}
+
+function enemyTurn() {
+  for (const e of entities) {
+    if (!e.alive) continue;
+    const dist = Math.abs(e.x-player.x)+Math.abs(e.y-player.y);
+    if (dist > 5) continue;
+    // Move toward player
+    const dx = Math.sign(player.x-e.x), dy = Math.sign(player.y-e.y);
+    const choices = [];
+    if (dx!==0) choices.push([dx,0]);
+    if (dy!==0) choices.push([0,dy]);
+    for (const [cx,cy] of choices) {
+      const nx=e.x+cx, ny=e.y+cy;
+      if (!canWalk(nx,ny)) continue;
+      if (entities.some(o=>o!==e&&o.alive&&o.x===nx&&o.y===ny)) continue;
+      if (nx===player.x && ny===player.y) {
+        const dmg = Math.max(1, e.atk - player.def);
+        player.hp -= dmg;
+        beep(250,0.15,'sawtooth');
+        showMsg(`${e.emoji} hit you for ${dmg}!`);
+        if (player.hp<=0) { gameOver(); return; }
+      } else {
+        e.x=nx; e.y=ny;
+      }
+      break;
+    }
+  }
+}
+
+function openChest(x, y) {
+  map[y][x] = T_FLOOR;
+  const r = Math.random();
+  if (r < 0.5) { player.inv.potions++; beep(600,0.15,'sine'); showMsg('📦 Potion! (use with ⚔️ATK button when no enemy nearby)'); }
+  else if (r < 0.75) { player.inv.swords++; player.atk++; beep(700,0.15,'sine'); showMsg('📦 Sword! ATK +1 → '+player.atk); }
+  else { player.inv.armor++; player.def++; beep(500,0.15,'sine'); showMsg('📦 Armor! DEF +1 → '+player.def); }
+}
+
+function doAttack() {
+  // Use potion if no adjacent enemy
+  const adjacent = entities.find(e=>e.alive&&Math.abs(e.x-player.x)<=1&&Math.abs(e.y-player.y)<=1);
+  if (!adjacent) {
+    if (player.inv.potions>0) { player.inv.potions--; player.hp=Math.min(player.maxHp,player.hp+8); beep(600,0.2,'sine'); showMsg('❤️ Used potion! +8 HP'); updateHUD(); }
+    else showMsg('No enemies nearby and no potions!');
+  } else {
+    attackEnemy(adjacent);
+  }
+}
+
+function levelUp() {
+  player.xp = 0; player.level++;
+  player.maxHp += 5; player.hp = Math.min(player.hp+5, player.maxHp);
+  player.atk++; score += 100;
+  beep(800,0.1); beep(1000,0.1); beep(1200,0.2,'sine');
+  showMsg(`🌟 Level Up! Now Lv.${player.level}! ATK+1, Max HP+5`);
+}
+
+function victory() {
+  cancelAnimationFrame(animFrame);
+  beep(800,0.1); beep(1000,0.1); beep(1200,0.1); beep(1500,0.3,'sine');
+  score += 1000;
+  submitScore(score);
+  document.getElementById('end-title').textContent = '🏆 Victory!';
+  document.getElementById('end-msg').innerHTML = `🐉 Dragon defeated!<br>Score: <b style="color:yellow">${score}</b><br>Level: ${player.level} • Kills: ${kills}`;
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'flex';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function gameOver() {
+  cancelAnimationFrame(animFrame);
+  beep(200,0.5,'sawtooth');
+  submitScore(score);
+  document.getElementById('end-title').textContent = '💀 You Fell!';
+  document.getElementById('end-msg').innerHTML = `Floor ${floor} • Score: <b style="color:yellow">${score}</b><br>Level: ${player.level} • Kills: ${kills}`;
+  document.getElementById('game-area').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'flex';
+  loadLeaderboard(document.getElementById('lb-list-end'));
+}
+
+function updateHUD() {
+  document.getElementById('hp-fill').style.width = (player.hp/player.maxHp*100)+'%';
+  document.getElementById('mp-fill').style.width = (player.mp/player.maxMp*100)+'%';
+  document.getElementById('xp-fill').style.width = (player.xp/3*100)+'%';
+  document.getElementById('hp-txt').textContent = player.hp+'/'+player.maxHp;
+  document.getElementById('mp-txt').textContent = player.mp+'/'+player.maxMp;
+  document.getElementById('xp-txt').textContent = player.xp+'/3';
+  document.getElementById('floor').textContent = floor;
+  document.getElementById('atk').textContent = player.atk;
+  document.getElementById('def').textContent = player.def;
+  document.getElementById('score').textContent = score;
+  document.getElementById('kills').textContent = kills;
+  const inv = document.getElementById('inventory');
+  inv.innerHTML = `<div class="inv-slot${player.inv.swords?'':''}">${player.inv.swords?'⚔️':'▫️'}<span class="inv-count">${player.inv.swords}</span></div>`+
+    `<div class="inv-slot">${player.inv.armor?'🛡️':'▫️'}<span class="inv-count">${player.inv.armor}</span></div>`+
+    `<div class="inv-slot">${player.inv.potions?'❤️':'▫️'}<span class="inv-count">${player.inv.potions}</span></div>`;
+}
+
+function showMsg(m) { document.getElementById('msg').textContent = m; }
+
+function handleKey(e) {
+  const map2 = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right', w:'up', s:'down', a:'left', d:'right', ' ':'atk' };
+  const dir = map2[e.key];
+  if (dir === 'atk') { doAttack(); return; }
+  if (dir) { e.preventDefault(); moveOnce(dir); }
+}
+
+function moveOnce(dir) {
+  const dm = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+  const [dx,dy] = dm[dir];
+  tryMove(dx,dy);
+}
+
+let moveTimer = null;
+function startDir(dir, e) { e.preventDefault(); moveOnce(dir); moveTimer = setInterval(()=>moveOnce(dir), 180); }
+function stopDir(e) { e.preventDefault(); clearInterval(moveTimer); }
+
+function confirmQuit() { cancelAnimationFrame(animFrame); window.removeEventListener('keydown',handleKey); goHome(); }
+function goHome() {
+  document.getElementById('game-area').style.display='none';
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('start-screen').style.display='flex';
+  loadLeaderboard(document.getElementById('lb-list'));
+}
+
+function loadLeaderboard(el) {
+  if (!fbDb || !el) return;
+  fbDb.ref('leaderboard/'+GAME_ID).orderByChild('score').limitToLast(8).once('value', snap=>{
+    const rows=[]; snap.forEach(c=>rows.push(c.val())); rows.reverse();
+    el.innerHTML = rows.length ? rows.map((r,i)=>`<div class="lb-row"><span>#${i+1} ${r.name}</span><span>${r.score}pts</span></div>`).join('') : '<div class="lb-row">No scores yet!</div>';
+  });
+}
+function submitScore(s) { if(!fbDb)return; fbDb.ref('leaderboard/'+GAME_ID).push({name:playerName(),score:s,ts:Date.now()}); }
+
+loadLeaderboard(document.getElementById('lb-list'));
+</script>
+</body>
+</html>
